@@ -589,6 +589,7 @@ class FourFormService : AccessibilityService() {
                     val desfecho = Llm.aplicar(reg, veredito, sugestoesLlm)
                     val confianca = (veredito as? Llm.Veredito.Responder)?.sugestao?.confianca
                     llmDiag[reg.campo.chave] = Llm.LlmDiagnostico(desfecho, confianca, latencia)
+                    if (escreverSugestao(s, reg)) return@post // fecharEpisodioLlm já gravou
                     painel?.atualizar()
                     gravarDiagnostico(s, voltas = null, aprendidos = 0)
                 }
@@ -642,6 +643,34 @@ class FourFormService : AccessibilityService() {
     }
 
     /** Desfecho final de um episódio de IA (aceita/editada/descartada), preservando confiança e latência. */
+    /**
+     * A IA ESCREVE. Decisão dele, 12/09, revertendo "IA fora do caminho crítico":
+     * "se ela propôs, ela pode escrever na tela mesmo · e se eu não concordar eu vou lá e apago".
+     *
+     * 🎓 Por que isso é coerente e não afrouxamento: o app é chamado por um toque consciente,
+     * e o que ele apagar volta como correção aprendida (aoMudarTexto → Learned), que VENCE o
+     * perfil na rodada seguinte. Ou seja, escrever é o que gera o sinal de treino; esperar
+     * aprovação no painel não gera nada quando a pessoa simplesmente fecha o painel — que foi
+     * o que aconteceu em todas as rodadas medidas até hoje.
+     *
+     * ⛔ Duas travas que NÃO caem junto: campo RESERVADO à pessoa (salário, identidade,
+     * consentimento) continua em branco mesmo com a IA sabendo a resposta, porque ali o
+     * problema nunca foi falta de dado, e sim que a declaração é dela; e campo que já tem
+     * texto nunca é sobrescrito (a régua está em Llm.candidato, antes daqui).
+     */
+    private fun escreverSugestao(s: Session, reg: Session.Registro): Boolean {
+        if (reg.reservado) return false
+        val chave = reg.campo.chave
+        val sug = sugestoesLlm[chave] ?: return false
+        val ok = escrever(nosPorChave[chave], sug.resposta) &&
+            s.escreverAgora(chave, sug.resposta, fonte = "AI · from \"${sug.ancora}\"")
+        if (!ok) return false
+        sugestoesLlm.remove(chave)
+        fecharEpisodioLlm(s, chave, "escrita_pela_ia")
+        painel?.atualizar()
+        return true
+    }
+
     private fun fecharEpisodioLlm(s: Session, chave: String, desfecho: String) {
         val antes = llmDiag[chave]
         llmDiag[chave] = Llm.LlmDiagnostico(desfecho, antes?.confianca, antes?.latenciaMs)
