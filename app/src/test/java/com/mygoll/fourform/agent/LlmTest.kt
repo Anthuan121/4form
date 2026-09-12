@@ -223,7 +223,7 @@ class LlmTest {
         val reg = registroSemDado()
         val sugestoes = mutableMapOf<String, Llm.Sugestao>()
         val v = Llm.Veredito.Responder(Llm.Sugestao("Ana Prova", "nome: Ana Prova", "alta"))
-        assertEquals("sugeriu", Llm.aplicar(reg, v, sugestoes))
+        assertEquals("sugeriu_literal", Llm.aplicar(reg, v, sugestoes))
         assertEquals("aberto", reg.acao)
         assertNull(reg.valorEscrito)
         assertEquals("Ana Prova", sugestoes[reg.campo.chave]?.resposta)
@@ -269,6 +269,110 @@ class LlmTest {
         assertEquals("IA · aprovado por você", s.registros().single().fonte)
         // e continua aprendendo: na próxima o perfil responde sem IA
         assertEquals(1, s.fechar()!!.aprendidos.size)
+    }
+
+    // ---- brief 259: the anchor stops being equality and becomes provenance ----
+
+    @Test
+    fun `resposta derivada e aceita e carrega a procedencia`() {
+        // Brief's JVM TEST 2: the real device case. "5+ years" does not exist in the CV,
+        // but the line "12 years... the last 7+..." proves exactly that range.
+        val linhasExperiencia = listOf(
+            "years of experience: 12 years in design, the last 7+ focused on product and UX",
+        )
+        val v = Llm.avaliar(
+            Result.success(
+                envelope(
+                    "{\"pode_responder\": true, \"resposta\": \"5+ years\", " +
+                        "\"ancora\": \"years of experience: 12 years in design, the last 7+ focused on product and UX\", " +
+                        "\"confianca\": \"alta\"}"
+                )
+            ),
+            linhasExperiencia,
+        )
+        val sug = (v as Llm.Veredito.Responder).sugestao
+        assertEquals("5+ years", sug.resposta)
+        assertEquals(linhasExperiencia.single(), sug.ancora)
+        assertFalse("5+ years is DERIVED, not copied from the anchor line", sug.literal)
+        val reg = registroSemDado("years of experience")
+        assertEquals("sugeriu_derivada", Llm.aplicar(reg, v, mutableMapOf()))
+    }
+
+    @Test
+    fun `resposta copiada da linha e literal no diagnostico`() {
+        val v = Llm.Veredito.Responder(Llm.Sugestao("Ana Prova", "nome: Ana Prova", "alta", literal = true))
+        assertEquals("sugeriu_literal", Llm.aplicar(registroSemDado(), v, mutableMapOf()))
+    }
+
+    @Test
+    fun `escolha derivada legitima e aceita`() {
+        val linhasExperiencia = listOf(
+            "years of experience: 12 years in design, the last 7+ focused on product and UX",
+        )
+        val opcoes = listOf("Less than 1 year", "1-3 years", "3-5 years", "5+ years")
+        val v = Llm.avaliarEscolha(
+            Result.success(
+                envelope(
+                    "{\"pode_responder\": true, \"resposta\": \"5+ years\", " +
+                        "\"ancora\": \"years of experience: 12 years in design, the last 7+ focused on product and UX\", " +
+                        "\"confianca\": \"alta\"}"
+                )
+            ),
+            opcoes,
+            linhasExperiencia,
+        )
+        val sug = (v as Llm.Veredito.Responder).sugestao
+        assertEquals("5+ years", sug.resposta)
+        assertFalse(sug.literal)
+    }
+
+    @Test
+    fun `escolha fora da lista enviada e descartada`() {
+        // Brief's JVM TEST 3: deriving is fine for the reasoning, never for inventing an option.
+        val opcoes = listOf("Less than 1 year", "1-3 years", "3-5 years", "5+ years")
+        val linhas = listOf("years of experience: 12 years in design, the last 7+ focused on product and UX")
+        val v = Llm.avaliarEscolha(
+            Result.success(
+                envelope(
+                    "{\"pode_responder\": true, \"resposta\": \"10+ years\", " +
+                        "\"ancora\": \"years of experience: 12 years in design, the last 7+ focused on product and UX\", " +
+                        "\"confianca\": \"alta\"}"
+                )
+            ),
+            opcoes,
+            linhas,
+        )
+        assertTrue(v is Llm.Veredito.NaoResponder)
+        assertFalse((v as Llm.Veredito.NaoResponder).doModelo)
+    }
+
+    @Test
+    fun `escolha com ancora inexistente continua descartada`() {
+        val opcoes = listOf("Yes", "No")
+        val v = Llm.avaliarEscolha(
+            Result.success(
+                envelope(
+                    "{\"pode_responder\": true, \"resposta\": \"Yes\", " +
+                        "\"ancora\": \"work authorization: yes\", \"confianca\": \"alta\"}"
+                )
+            ),
+            opcoes,
+            listOf("nome: Ana Prova"),
+        )
+        assertTrue(v is Llm.Veredito.NaoResponder)
+    }
+
+    @Test
+    fun `corpoEscolha carrega pergunta e opcoes e autoriza interpretar`() {
+        val corpo = Llm.corpoEscolha(
+            "What is your level of English?",
+            listOf("Basic", "Intermediate", "Advanced/Professional"),
+            listOf("english: fluent, C2"),
+        )
+        assertTrue(corpo.contains("What is your level of English?"))
+        assertTrue(corpo.contains("Advanced/Professional"))
+        assertTrue(corpo.contains("english: fluent, C2"))
+        assertTrue(corpo.contains("INTERPRETAR"))
     }
 
     // ---- diagnóstico ----
