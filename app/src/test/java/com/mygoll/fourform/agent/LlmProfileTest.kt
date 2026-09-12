@@ -17,7 +17,7 @@ class LlmPerfilTest {
 
     private val linhas = listOf(
         LinhaNaoEntendida(2, "Product Designer · Banking · Insurance · Healthcare · Fintech"),
-        LinhaNaoEntendida(4, "EU citizen (Italian) — full work authorisation"),
+        LinhaNaoEntendida(4, "EU citizen (Italian), full work authorisation"),
         LinhaNaoEntendida(8, "A designer for 12 years, the last 7+ focused on product and UX"),
     )
 

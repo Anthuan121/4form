@@ -1,19 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- ⛔ TEMPORÁRIO, E SÓ NA VARIANTE DEBUG (10/09/2026, pedido do Anthuan).
-         Existe para a SONDA DE BANCADA: durante o teste, o app manda o diagnóstico de cada
-         varredura para a VPS, e o CC lê em tempo real em vez de ele mandar print a cada tela.
+    <!-- ⛔ TEMPORARY, DEBUG VARIANT ONLY (09/10/2026, Anthuan's request).
+         Exists for the BENCH PROBE: during testing, the app sends each scan's diagnostic
+         to the VPS, and CC reads it in real time instead of him sending a screenshot per screen.
 
-         Por que este arquivo e não o manifest de main: o Gradle mescla manifesto POR VARIANTE.
-         Estando aqui, o APK de release nasce SEM android.permission.INTERNET por construção,
-         não por disciplina de quem lembrar de tirar depois. A alternativa (declarar em main e
-         guardar o código com if BuildConfig.DEBUG) mantém a permissão declarada na ficha do
-         app publicado — inaceitável num app de acessibilidade que promete não mandar nada
-         para fora, e foi exatamente o preço que o Binspector pagou na política de privacidade.
+         Why this file and not the main manifest: Gradle merges the manifest PER VARIANT.
+         Being here, the release APK is born WITHOUT android.permission.INTERNET by
+         construction, not by the discipline of whoever remembers to remove it later. The
+         alternative (declaring it in main and guarding the code with if BuildConfig.DEBUG)
+         keeps the permission declared on the published app's listing. Unacceptable for an
+         accessibility app that promises to send nothing out, and it's exactly the price
+         Binspector paid in its privacy policy.
 
-         Esta build NÃO vai para a Play Store nem para lugar nenhum: é bancada de teste.
-         Quando o mapeamento fechar, some daqui junto com a location /sonda/ do nginx. -->
+         This build does NOT go to the Play Store or anywhere else: it's a test bench.
+         When mapping wraps up, this disappears along with nginx's /sonda/ location. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
 </manifest>

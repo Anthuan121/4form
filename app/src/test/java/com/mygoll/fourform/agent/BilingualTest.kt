@@ -14,7 +14,7 @@ import org.junit.Test
  *   [aberto] "How many years of professional UX/UI or product design experience"
  *            → "não tenho esse dado"
  *
- * O perfil TINHA o dado — como "anos de experiencia: 12". Matcher.kt casa palavra a
+ * O perfil TINHA o dado, como "anos de experiencia: 12". Matcher.kt casa palavra a
  * palavra e nenhuma palavra é comum entre as duas línguas. Dado que existe virava buraco,
  * e a IA era chamada para cobrir uma falha que não precisava existir.
  */

@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Notificação é o único canal de aviso passivo do app (motivo de campo aberto + recibo). -->
+    <!-- Notification is the app's only passive warning channel (open-field reason + receipt). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- android:name=".App" É o requisito nº 1 deste projeto: instala o gravador de crash
-         antes de qualquer tela. As 4 builds anteriores do outro app morreram cegas por
-         não ter esta linha. -->
+    <!-- android:name=".App" IS requirement #1 of this project: installs the crash
+         recorder before any screen. The other app's previous 4 builds died blind for
+         not having this line. -->
     <application
         android:name=".App"
         android:allowBackup="false"
@@ -23,9 +23,9 @@
             </intent-filter>
         </activity>
 
-        <!-- Entrada do perfil por arquivo (brief 243). Exported=true SÓ pelo compartilhar:
-             receber ACTION_SEND de outro app exige isso. Ela não devolve dado nenhum e
-             nada é salvo sem a pessoa confirmar na tela. -->
+        <!-- Profile-by-file entry point (brief 243). Exported=true ONLY for sharing:
+             receiving ACTION_SEND from another app requires it. It returns no data at
+             all, and nothing is saved without the person confirming on screen. -->
         <activity
             android:name=".ProfileFileActivity"
             android:exported="true"
@@ -34,10 +34,10 @@
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/*" />
-                <!-- Telegram e gerenciador de arquivos costumam mandar .md como
-                     application/octet-stream; sem esta linha 4Form does not show up in the
-                     lista do compartilhar. Mais estreito que "*/*" de propósito: não
-                     queremos o app em TODO compartilhar. O código já lê por stream. -->
+                <!-- Telegram and file managers usually send .md as
+                     application/octet-stream; without this line 4Form does not show up in
+                     the share list. Narrower than "*/*" on purpose: we don't want the app
+                     showing up on EVERY share. The code already reads via stream. -->
                 <data android:mimeType="application/octet-stream" />
             </intent-filter>
         </activity>
@@ -54,8 +54,8 @@
             android:name=".DiagnosticsActivity"
             android:exported="false" />
 
-        <!-- Serve SÓ os diagnósticos, só leitura, e só ao app escolhido no compartilhar
-             (grant por URI no intent). Nenhum outro dado do filesDir passa por aqui. -->
+        <!-- Serves ONLY the diagnostics, read-only, and only to the app chosen for
+             sharing (URI grant in the intent). No other data from filesDir goes through here. -->
         <provider
             android:name=".FileProvider"
             android:authorities="com.mygoll.fourform.diagnosticos"
