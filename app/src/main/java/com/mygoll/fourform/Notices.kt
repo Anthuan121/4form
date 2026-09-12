@@ -10,9 +10,9 @@ import com.mygoll.fourform.agent.ItemAberto
 import com.mygoll.fourform.agent.Receipt
 
 /**
- * O aviso é sempre PASSIVO (decisão do Anthuan 08/09): notificação, nunca diálogo nem
- * tela por cima. O campo fica aberto e o usuário preenche do jeito dele, com o foco do
- * teclado intacto.
+ * The notice is always PASSIVE (Anthuan's decision on 09/08): a notification, never a
+ * dialog or an overlay screen. The field stays open and the user fills it their own way,
+ * with keyboard focus intact.
  */
 object Notices {
 

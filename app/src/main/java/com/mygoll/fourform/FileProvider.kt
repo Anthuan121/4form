@@ -11,11 +11,11 @@ import java.io.File
 import java.io.FileNotFoundException
 
 /**
- * Serve UM tipo de arquivo, só leitura: os diagnósticos, para o ACTION_SEND (Telegram,
- * e-mail). Caseiro de propósito: o FileProvider oficial mora no androidx e este app não
- * tem dependência de runtime nenhuma — 60 linhas aqui custam menos que a primeira lib.
- * exported=false + grantUriPermissions: só o app alvo do compartilhamento, e só o arquivo
- * concedido no intent, nada mais.
+ * Serves ONE type of file, read-only: diagnostics, for ACTION_SEND (Telegram,
+ * email). Homegrown on purpose: the official FileProvider lives in androidx and this app has
+ * zero runtime dependencies. 60 lines here cost less than pulling in the first library.
+ * exported=false + grantUriPermissions: only the sharing target app, and only the file
+ * granted in the intent, nothing more.
  */
 class FileProvider : ContentProvider() {
 
@@ -30,7 +30,7 @@ class FileProvider : ContentProvider() {
 
     private fun arquivoDe(uri: Uri): File {
         val nome = uri.lastPathSegment ?: throw FileNotFoundException("$uri")
-        // trava dupla contra path traversal: nome no formato exato E dentro da pasta
+        // double lock against path traversal: name in the exact format AND inside the folder
         if (!NOME_VALIDO.matches(nome)) throw FileNotFoundException("$uri")
         val pasta = Store.pastaDiagnosticos(context!!)
         val f = File(pasta, nome)
@@ -47,7 +47,7 @@ class FileProvider : ContentProvider() {
 
     override fun getType(uri: Uri): String = "application/json"
 
-    /** Nome e tamanho: é o que Gmail/Telegram consultam antes de anexar. */
+    /** Name and size: what Gmail/Telegram query before attaching. */
     override fun query(
         uri: Uri,
         projection: Array<String>?,

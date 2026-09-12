@@ -17,12 +17,13 @@ import com.mygoll.fourform.Ui.kicker
 import com.mygoll.fourform.Ui.placar
 
 /**
- * Onde o perfil aprendido VIVE (pedido dele, 09/09): tudo que o app sabe por observação,
- * com editar e apagar. É a tela que responde "o que esse app sabe sobre mim?".
+ * Where the learned profile LIVES (his request, 09/09): everything the app knows by
+ * observation, with edit and delete. It's the screen that answers "what does this app know
+ * about me?".
  *
- * 🎓 Por que editar e apagar são obrigatórios e não features: um app que aprende observando
- * e não deixa desaprender é vigilância. O botão de apagar é o que transforma observação em
- * acordo.
+ * 🎓 Why edit and delete are mandatory and not features: an app that learns by observing
+ * and doesn't let you unlearn is surveillance. The delete button is what turns observation
+ * into consent.
  */
 class LearnedActivity : Activity() {
 

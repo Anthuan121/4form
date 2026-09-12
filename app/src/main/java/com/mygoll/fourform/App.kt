@@ -7,16 +7,16 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * A primeira função do app é contar por que ele morreu, sem cabo e sem adb.
- * O handler grava em filesDir/ultimo-crash.txt e DEPOIS repassa ao handler anterior,
- * para o Android seguir com o diálogo padrão de crash.
+ * The app's first job is to say why it died, without a cable and without adb.
+ * The handler writes to filesDir/ultimo-crash.txt and THEN forwards to the previous
+ * handler, so Android still proceeds with its standard crash dialog.
  */
 class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        // migração do 242: o relatório antigo (v0.1/v0.2) gravava VALORES escritos; o
-        // diagnóstico novo não grava e o arquivo velho não precisa continuar em disco
+        // migration from 242: the old report (v0.1/v0.2) wrote out entered VALUES; the
+        // new diagnostic doesn't, and the old file doesn't need to keep sitting on disk
         File(filesDir, "ultimo-relatorio.json").delete()
         val anterior = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, erro ->
@@ -29,7 +29,7 @@ class App : Application() {
                         erro.stackTraceToString()
                 )
             } catch (_: Throwable) {
-                // gravar o crash nunca pode causar outro crash
+                // logging the crash can never cause another crash
             }
             anterior?.uncaughtException(thread, erro)
         }

@@ -1,11 +1,12 @@
 package com.mygoll.fourform.scan
 
 /**
- * Mescla os pares confirmados na tela por cima do perfil que já existe, chave a chave:
- * chave igual (normalizada, igualdade EXATA: "nome" não atropela "nome completo") tem o
- * valor substituído na própria linha; chave nova entra no fim; linha que não é par fica
- * como está. Os aprendidos vivem em outro arquivo e não passam por aqui — correção da
- * pessoa continua vencendo o perfil base, como sempre (regra do 240).
+ * Merges the pairs confirmed on screen over the profile that already exists, key by key:
+ * a matching key (normalized, EXACT equality: "nome" doesn't run over "nome completo")
+ * has its value replaced in the same line; a new key gets appended at the end; a line
+ * that isn't a pair stays as it is. Learned entries live in a different file and don't
+ * go through here. A person's correction still beats the base profile, as always
+ * (rule from 240).
  */
 object Merger {
 

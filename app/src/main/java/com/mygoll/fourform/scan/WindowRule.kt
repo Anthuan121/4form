@@ -1,16 +1,16 @@
 package com.mygoll.fourform.scan
 
 /**
- * Decide se uma mudança de janela ENCERRA a sessão de preenchimento.
- * Regra do Anthuan (09/09): tela mudou = em tese submeteu; formulário de várias páginas
- * salva a cada página. Por isso mudança DENTRO do mesmo app também encerra.
- * O que NÃO encerra: o teclado abrindo (dispara o mesmo evento) e as telas do próprio app.
+ * Decides whether a window change ENDS the fill session.
+ * Anthuan's rule (09/09): screen changed = in theory it was submitted; a multi-page form
+ * saves on every page. That's why a change WITHIN the same app also ends it.
+ * What does NOT end it: the keyboard opening (fires the same event) and the app's own screens.
  */
 object WindowRule {
 
-    // ponytail: teclado detectado por nome de pacote/classe; cobre Gboard, Samsung,
-    // SwiftKey e AOSP. Teclado exótico fora da lista só faria a sessão fechar cedo demais,
-    // e o teste de aparelho mede exatamente isso.
+    // ponytail: keyboard detected by package/class name; covers Gboard, Samsung,
+    // SwiftKey, and AOSP. An exotic keyboard outside the list would only make the
+    // session close too early, and the on-device test measures exactly that.
     private val TECLADOS = listOf("inputmethod", "keyboard", "honeyboard", "swiftkey")
 
     fun encerraSessao(pacoteEvento: String?, classeEvento: String?, meuPacote: String): Boolean {

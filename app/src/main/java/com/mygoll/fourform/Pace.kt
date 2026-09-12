@@ -1,22 +1,23 @@
 package com.mygoll.fourform
 
 /**
- * O ÚNICO lugar dos tempos do laço (critério 10 do brief 242): no dia 12/09 a calibragem
- * é mexer aqui e rebuildar, sem caçar constante.
+ * The ONLY place for loop timings (criterion 10 of brief 242): on 09/12, calibrating
+ * means editing here and rebuilding, no hunting for a scattered constant.
  */
 object Pace {
-    // ponytail: os dois números são CHUTE MEU, não medida. O Anthuan pediu ritmo visível
-    // ("não importa que demore um pouquinho"): a pausa entre campos é o que deixa a pessoa
-    // VER o agente preenchendo um a um, em ordem, em vez de tudo aparecer pronto.
+    // ponytail: both numbers are MY GUESS, not a measurement. Anthuan asked for a visible
+    // pace ("it's fine if it takes a little longer"): the pause between fields is what lets
+    // the person SEE the agent filling one at a time, in order, instead of everything
+    // appearing already done.
     const val ENTRE_CAMPOS_MS = 350L
 
-    // quanto esperar depois do ACTION_SCROLL_FORWARD para a tela assentar e a árvore
-    // refletir o que entrou na viewport; curto demais = varredura vê a tela velha.
+    // how long to wait after ACTION_SCROLL_FORWARD for the screen to settle and the tree
+    // to reflect what entered the viewport; too short = the scan sees the stale screen.
     const val POS_ROLAGEM_MS = 500L
 
-    // duração do arrastar quando a ação da árvore não move a tela (WebView). Rápido demais
-    // vira "fling" e a página sai voando passando campos; devagar demais o usuário acha que
-    // travou. 300ms é arrastar deliberado, que para onde o dedo parou.
-    // ponytail: valor único; se algum app precisar de outro, vira tabela por pacote.
+    // drag duration when the tree action doesn't move the screen (WebView). Too fast
+    // turns into a "fling" and the page flies past fields; too slow and the user thinks it
+    // froze. 300ms is a deliberate drag that stops where the finger stopped.
+    // ponytail: single value; if some app needs a different one, it becomes a per-package table.
     const val GESTO_MS = 300L
 }

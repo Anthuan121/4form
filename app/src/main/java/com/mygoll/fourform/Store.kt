@@ -14,22 +14,22 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Tudo que o app sabe vive em filesDir, em texto plano: perfil.txt (colado pelo usuário),
- * aprendidos.tsv (o que ele observou), caminhos.tsv (qual nível de rótulo funciona onde),
- * ultimo-recibo.tsv, a pasta diagnosticos/ e ultimo-crash.txt. Nada sai do aparelho — só o
- * diagnóstico, e apenas pelo botão de compartilhar, por vontade do usuário.
+ * Everything the app knows lives in filesDir, in plain text: perfil.txt (pasted by the
+ * user), aprendidos.tsv (what it observed), caminhos.tsv (which label level works where),
+ * ultimo-recibo.tsv, the diagnosticos/ folder, and ultimo-crash.txt. Nothing leaves the
+ * device. Only the diagnostic does, and only via the share button, by the user's own will.
  */
 object Store {
 
     private fun arq(ctx: Context, nome: String) = File(ctx.filesDir, nome)
 
-    // ---- perfil base ----
+    // ---- base profile ----
 
     fun perfilTexto(ctx: Context): String =
         arq(ctx, "perfil.txt").takeIf { it.exists() }?.readText() ?: ""
 
     fun salvarPerfilTexto(ctx: Context, texto: String) {
-        // perfil em branco = perfil apagado; não deixar arquivo vazio fantasma no disco
+        // blank profile = deleted profile; don't leave a ghost empty file on disk
         if (texto.isBlank()) arq(ctx, "perfil.txt").delete() else arq(ctx, "perfil.txt").writeText(texto)
     }
 
@@ -38,9 +38,10 @@ object Store {
     fun apagarPerfil(ctx: Context) = apagarPerfil(ctx.filesDir)
 
     /**
-     * Apaga o que é DADO DA PESSOA: perfil base, aprendidos e o último recibo (que guarda
-     * valores preenchidos). Caminhos e diagnósticos ficam: não carregam valor nenhum,
-     * provado por teste no 242. Recebe File pra ser provável em teste JVM, sem Context.
+     * Deletes what is the PERSON'S DATA: base profile, learned entries, and the last
+     * receipt (which holds filled-in values). Paths and diagnostics stay: they carry no
+     * value at all, proven by a test in 242. Takes a File to be testable in a JVM test,
+     * without a Context.
      */
     fun apagarPerfil(dir: File) {
         File(dir, "perfil.txt").delete()
@@ -48,7 +49,7 @@ object Store {
         File(dir, "ultimo-recibo.tsv").delete()
     }
 
-    // ---- aprendidos ----
+    // ---- learned entries ----
 
     fun aprendidos(ctx: Context): List<Learned> {
         val f = arq(ctx, "aprendidos.tsv")
@@ -89,7 +90,7 @@ object Store {
     fun temAprendido(ctx: Context, rotulo: String, quandoMs: Long): Boolean =
         aprendidos(ctx).any { it.rotulo == rotulo && it.quandoMs == quandoMs }
 
-    // ---- recibo ----
+    // ---- receipt ----
 
     fun gravarRecibo(ctx: Context, r: Receipt) {
         val sb = StringBuilder()
@@ -119,18 +120,18 @@ object Store {
         return Receipt(preenchidos, abertos, aprendidos)
     }
 
-    // ---- diagnósticos (brief 242: um por varredura, exportáveis, SEM valores) ----
+    // ---- diagnostics (brief 242: one per scan, exportable, WITHOUT values) ----
 
-    // ponytail: 20 varreduras guardadas; a 21ª derruba a mais velha. É histórico de
-    // depuração, não arquivo morto.
+    // ponytail: 20 scans kept; the 21st evicts the oldest one. It's debugging
+    // history, not a dead file.
     private const val MAX_DIAGNOSTICOS = 20
 
     fun pastaDiagnosticos(ctx: Context): File =
         File(ctx.filesDir, "diagnosticos").apply { mkdirs() }
 
     /**
-     * Grava (ou regrava, quando a sessão fecha e o estado final chega) o diagnóstico.
-     * O nome carimba a hora, então ordenar por nome = ordenar por tempo.
+     * Writes (or rewrites, when the session closes and the final state arrives) the
+     * diagnostic. The name is timestamped, so sorting by name = sorting by time.
      */
     fun gravarDiagnostico(ctx: Context, json: String, sobrescrever: File? = null): File {
         val destino = sobrescrever
@@ -143,7 +144,7 @@ object Store {
         return destino
     }
 
-    /** Do mais novo para o mais velho. */
+    /** Newest to oldest. */
     fun listarDiagnosticos(ctx: Context): List<File> =
         pastaDiagnosticos(ctx).listFiles { f -> f.name.endsWith(".json") }
             ?.sortedByDescending { it.name } ?: emptyList()
@@ -152,7 +153,7 @@ object Store {
         listarDiagnosticos(ctx).forEach { it.delete() }
     }
 
-    // ---- caminhos aprendidos (contagem de nível por pacote, e SÓ isso) ----
+    // ---- learned paths (level count per package, and ONLY that) ----
 
     fun carregarCaminho(ctx: Context): PathMemory =
         arq(ctx, "caminhos.tsv").takeIf { it.exists() }?.let { PathMemory.de(it.readText()) }

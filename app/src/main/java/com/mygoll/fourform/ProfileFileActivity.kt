@@ -29,18 +29,19 @@ import com.mygoll.fourform.agent.Llm
 import com.mygoll.fourform.scan.Merger
 
 /**
- * A entrada do perfil por arquivo (.md/.txt) e por compartilhar, com a tela de confirmação
- * OBRIGATÓRIA: o app extrai, MOSTRA o que achou com a linha de origem do lado, a pessoa
- * edita, apaga e confirma; só o botão "Salvar perfil" grava. Sem confirmação, nada é salvo.
- * O arquivo original não fica guardado: é lido, extraído e descartado da memória.
- * PDF ficou fora desta versão: extrair texto de PDF exige biblioteca de 3 MB ou mais e o
- * app abre mão do recurso pra continuar mínimo (medição no brief 243).
+ * Profile entry by file (.md/.txt) and by share, with the confirmation screen as a
+ * MANDATORY step: the app extracts, SHOWS what it found with the source line next to it,
+ * the person edits, deletes, and confirms; only the "Save profile" button writes it. No
+ * confirmation, nothing gets saved. The original file isn't kept: it's read, extracted, and
+ * discarded from memory. PDF is out of scope for this version: extracting text from PDF
+ * needs a 3 MB+ library, and the app gives up the feature to stay minimal (measured in
+ * brief 243).
  */
 class ProfileFileActivity : Activity() {
 
     private companion object {
         const val PEDIDO_ARQUIVO = 1
-        const val LIMITE_BYTES = 512 * 1024 // currículo é KB; acima disso não é perfil
+        const val LIMITE_BYTES = 512 * 1024 // a resume is KB-sized; above that it's not a profile
     }
 
     private lateinit var col: LinearLayout
@@ -75,9 +76,9 @@ class ProfileFileActivity : Activity() {
                 if (texto == null) mostrarErro(erro) else montarConfirmacao(texto)
             }
         } else {
-            // veio da tela principal: abre o seletor do sistema na hora. type "*/*" de
-            // propósito: .md chega como text/markdown, text/plain ou octet-stream
-            // dependendo do app de origem, e filtrar por MIME cortaria o caso principal.
+            // came from the main screen: open the system picker right away. type "*/*" on
+            // purpose: .md arrives as text/markdown, text/plain, or octet-stream
+            // depending on the source app, and filtering by MIME would cut off the main case.
             val i = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
                 type = "*/*"
@@ -92,17 +93,17 @@ class ProfileFileActivity : Activity() {
         if (requestCode != PEDIDO_ARQUIVO) return
         val uri = data?.data
         if (resultCode != RESULT_OK || uri == null) {
-            finish() // a pessoa desistiu no seletor; nada a fazer
+            finish() // the person backed out of the picker; nothing to do
             return
         }
         val (texto, erro) = lerUri(uri)
         if (texto == null) mostrarErro(erro) else montarConfirmacao(texto)
     }
 
-    // ---- leitura ----
+    // ---- reading ----
 
-    /** Lê o conteúdo pra memória. Devolve (texto, "") no sucesso ou (null, motivo). */
-    /** Só o NOME, para a tela dizer o que leu. ⛔ O arquivo em si nunca é guardado. */
+    /** Reads the content into memory. Returns (text, "") on success or (null, reason). */
+    /** Just the NAME, so the screen can say what it read. ⛔ The file itself is never kept. */
     private var nomeDoArquivo: String? = null
 
     private fun lerUri(uri: Uri): Pair<String?, String> {
@@ -132,16 +133,17 @@ class ProfileFileActivity : Activity() {
         return bytes.decodeToString() to ""
     }
 
-    // ---- a tela de confirmação ----
+    // ---- the confirmation screen ----
 
     private fun montarConfirmacao(texto: String) {
         val extracao = Extractor.extrair(texto)
         col.removeAllViews()
         vivos.clear()
 
-        // Estrutura do desenho aprovado por ele em 12/09 (Fable, tela 2). O título fala na
-        // PRIMEIRA PESSOA de propósito: esta é a tela onde a confiança nasce ou morre, porque
-        // é onde o app mostra o que entendeu ANTES de usar em nome da pessoa.
+        // Structure from the design approved by him on 09/12 (Fable, screen 2). The title
+        // speaks in the FIRST PERSON on purpose: this is the screen where trust is born or
+        // dies, because it's where the app shows what it understood BEFORE acting on the
+        // person's behalf.
         col.addView(kicker("Profile · resume"))
         col.addView(h2("Here's what I understood"))
         col.addView(explicacao("Check it before I use it. Each item shows where in the file it came from."))
@@ -198,9 +200,10 @@ class ProfileFileActivity : Activity() {
                 caixaIgnoradas.visibility = if (aberta) android.view.View.GONE else android.view.View.VISIBLE
                 alternar.text = if (aberta) "Show the ${extracao.naoEntendi.size} lines" else "Hide"
             }
-            // Degrau opcional (10/09): a IA lê essas linhas e propõe pares. ⛔ Não substitui
-            // a régua do Extractor — ela continua sendo a rede quando a IA está fora do ar.
-            // Tudo cai nesta MESMA tela: nada é salvo sem o botão Salvar.
+            // Optional step (09/10): the AI reads these lines and proposes pairs. ⛔ Doesn't
+            // replace the Extractor's rule set. It stays the safety net when the AI is
+            // offline. Everything lands on this SAME screen: nothing is saved without
+            // the Save button.
             col.addView(botaoIa(extracao.naoEntendi))
             col.addView(alternar)
             col.addView(caixaIgnoradas)
@@ -220,10 +223,11 @@ class ProfileFileActivity : Activity() {
     }
 
     /**
-     * "Deixar a IA ler". Thread própria (rede na main thread lança
-     * NetworkOnMainThreadException e trava a tela), botão desabilitado enquanto roda para
-     * não disparar duas vezes, e falha em silêncio útil: sem rede ou resposta ilegível, a
-     * tela fica EXATAMENTE como está e as linhas seguem promovíveis a dedo.
+     * "Let the AI read". Its own thread (networking on the main thread throws
+     * NetworkOnMainThreadException and freezes the screen), button disabled while it runs
+     * so it doesn't fire twice, and a useful silent failure: with no network or an
+     * unreadable response, the screen stays EXACTLY as it is and the lines can still be
+     * promoted by hand.
      */
     private fun botaoIa(naoEntendi: List<com.mygoll.fourform.scan.LinhaNaoEntendida>) =
         botao("Let the AI read these ${naoEntendi.size} lines") {}.apply {
@@ -268,7 +272,7 @@ class ProfileFileActivity : Activity() {
             setText(chave)
             textSize = 11f
             setTextColor(resources.getColor(R.color.texto_secundario, null))
-            background = null // o contêiner já separa os itens; borda por campo polui
+            background = null // the container already separates items; a border per field clutters things
             setPadding(0, 0, 0, 0)
         }
         val caixaValor = EditText(this).apply {
@@ -292,7 +296,7 @@ class ProfileFileActivity : Activity() {
         vivos.add(par)
     }
 
-    /** O ÚNICO caminho do arquivo até o disco passa por este botão. */
+    /** The ONLY path from the file to disk goes through this button. */
     private fun salvar() {
         val confirmados = vivos
             .filterNot { it.apagado }

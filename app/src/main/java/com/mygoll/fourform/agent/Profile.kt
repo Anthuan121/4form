@@ -7,9 +7,9 @@ import com.mygoll.fourform.scan.Extractor
 data class Found(val valor: String, val fonte: String, val chaveCasada: String)
 
 /**
- * O que o app sabe sobre a pessoa: texto colado por ela (uma linha "chave: valor" por dado)
- * + o que aprendeu observando. O APRENDIDO VENCE o texto base, e o mais recente vence o
- * mais antigo: correção do usuário é o sinal mais forte que existe.
+ * What the app knows about the person: text they pasted (one "key: value" line per fact)
+ * + what it learned by observing. LEARNED BEATS the base text, and the most recent beats
+ * the oldest: a user correction is the strongest signal there is.
  */
 class Profile(textoBase: String, private val aprendidos: List<Learned>) {
 
@@ -31,28 +31,29 @@ class Profile(textoBase: String, private val aprendidos: List<Learned>) {
     }
 
     /**
-     * Casa a chave do perfil E as gêmeas dela em outro idioma. Sem isto, o perfil dele diz
-     * "anos de experiencia: 12", o Ashby pergunta "How many years of professional UX/UI or
-     * product design experience do you have?" e nenhuma palavra coincide: dado que EXISTE
-     * vira "não tenho esse dado", e o campo ainda sobe pra IA de graça.
+     * Matches the profile's key AND its twins in another language. Without this, his
+     * profile says "anos de experiencia: 12", Ashby asks "How many years of professional
+     * UX/UI or product design experience do you have?", and no word matches: data that
+     * EXISTS turns into "I don't have this data", and the field still goes up to the AI for nothing.
      *
-     * 🔴 A tabela bilíngue existia desde 10/09 mas só rodava na IMPORTAÇÃO do perfil
-     * (Llm.kt, ao ler o currículo). Nunca tinha sido ligada aqui, no casamento com o campo,
-     * que é onde ela decide se preenche ou não. Medido no aparelho dele em 12/09.
+     * 🔴 The bilingual table has existed since 09/10 but only ran during profile IMPORT
+     * (Llm.kt, when reading the resume). It had never been wired up here, at the match
+     * against the field, which is where it decides whether to fill it or not. Measured on
+     * his device on 09/12.
      */
     private fun casaBilingue(rotulo: String, chave: String): Boolean =
         Extractor.bilingue(chave).any { Matcher.casa(rotulo, it) }
 
     /**
-     * Uma OPÇÃO de escolha (radio, checkbox) é o caso invertido: o rótulo da opção já é o
-     * VALOR candidato, não a pergunta. "Especialista UX/UI" só deve ser marcado se isso
-     * estiver declarado no perfil, nunca porque parece provável.
+     * A choice OPTION (radio, checkbox) is the inverted case: the option's label is
+     * already the candidate VALUE, not the question. "UX/UI Specialist" should only be
+     * checked if that's declared in the profile, never because it seems likely.
      *
-     * Deliberadamente severo: exige que um valor do perfil e o rótulo da opção se contenham
-     * depois de normalizados, com no mínimo 4 caracteres úteis. ⛔ Marcar de menos é um
-     * campo em branco que a pessoa resolve em 1 toque; marcar de mais é uma afirmação falsa
-     * enviada no nome dela, que é exatamente o que os concorrentes fazem (246) e o que este
-     * produto promete não fazer. Os dois erros ⛔ NÃO têm o mesmo custo.
+     * Deliberately strict: requires a profile value and the option's label to contain
+     * each other after normalization, with at least 4 useful characters. ⛔ Under-checking
+     * is a blank field the person resolves in 1 tap; over-checking is a false statement
+     * sent in their name, which is exactly what competitors do (246) and what this
+     * product promises not to do. The two mistakes ⛔ do NOT have the same cost.
      */
     fun opcaoBateComPerfil(rotuloOpcao: String): Found? {
         val opcao = normalizar(rotuloOpcao)
@@ -66,13 +67,14 @@ class Profile(textoBase: String, private val aprendidos: List<Learned>) {
     }
 
     /**
-     * O caso que ele bateu de frente em 12/09: *"Você reside num país europeu?"* com opções
-     * Sim/Não. Aqui a PERGUNTA é que casa com o perfil, e o rótulo da opção é só a resposta
-     * candidata — invertido em relação a opcaoBateComPerfil, onde a opção já é o valor.
+     * The case he ran head-on into on 09/12: *"Do you reside in a European country?"*
+     * with Yes/No options. Here the QUESTION is what matches the profile, and the
+     * option's label is just the candidate answer. Inverted from opcaoBateComPerfil,
+     * where the option is already the value.
      *
-     * Sem isto, o app comparava "Yes" com o perfil e nunca casava: nenhum perfil contém
-     * "Yes". ⛔ Continua não inventando: só responde quando o perfil tem uma linha para
-     * ESTA pergunta. O que não estiver declarado segue em branco.
+     * Without this, the app would compare "Yes" to the profile and never match: no
+     * profile contains "Yes". ⛔ Still doesn't make things up: it only answers when the
+     * profile has a line for THIS question. Whatever isn't declared stays blank.
      */
     fun respostaParaEscolha(pergunta: String, rotuloOpcao: String): Found? {
         val achado = valorPara(pergunta) ?: return null
@@ -80,8 +82,8 @@ class Profile(textoBase: String, private val aprendidos: List<Learned>) {
         val opcao = normalizar(rotuloOpcao)
         if (opcao.isEmpty()) return null
         val bate = when {
-            // sim/não é a resposta mais comum e atravessa idioma: o perfil dele é em
-            // português e o formulário da vaga, em inglês.
+            // yes/no is the most common answer and crosses languages: his profile is in
+            // Portuguese and the job form is in English.
             valor in AFIRMATIVO && opcao in AFIRMATIVO -> true
             valor in NEGATIVO && opcao in NEGATIVO -> true
             valor in AFIRMATIVO || valor in NEGATIVO || opcao in AFIRMATIVO || opcao in NEGATIVO ->

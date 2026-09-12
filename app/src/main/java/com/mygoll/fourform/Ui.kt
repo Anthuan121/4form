@@ -13,13 +13,13 @@ import android.widget.ScrollView
 import android.widget.TextView
 
 /**
- * UI montada em código, sem layout XML: as telas são listas dinâmicas e o sistema visual
- * de verdade chega pelo brief 241 (trocando só o themes.xml). Aqui, o mínimo legível.
+ * UI built in code, no XML layout: the screens are dynamic lists and the real visual
+ * system arrives via brief 241 (swapping only themes.xml). Here, the minimum readable.
  *
- * 🎓 As extensions são de Context, não de Activity, de propósito: o Panel do overlay é
- * desenhado por um AccessibilityService (que também é Context) e precisa falar a MESMA
- * língua visual das telas. Activity herda de Context, então as 5 Activities usam tudo
- * igual · e o sistema visual continua morando num arquivo só.
+ * 🎓 The extensions are on Context, not Activity, on purpose: the overlay's Panel is
+ * drawn by an AccessibilityService (which is also a Context) and needs to speak the SAME
+ * visual language as the screens. Activity inherits from Context, so all 5 Activities use
+ * the same things · and the visual system keeps living in a single file.
  */
 object Ui {
 
@@ -61,15 +61,15 @@ object Ui {
         setOnClickListener(aoTocar)
     }
 
-    // ── componentes do sistema visual de 12/09 (paleta Cosmic Luxury) ──────────────────
-    // Vêm do desenho aprovado por ele em HTML. Ficam AQUI, e não copiados tela a tela, para
-    // que trocar o sistema visual continue sendo mexer num arquivo só.
+    // ── components from the 09/12 visual system (Cosmic Luxury palette) ────────────────
+    // Come from the design approved by him in HTML. They live HERE, not copied screen by
+    // screen, so that swapping the visual system stays a one-file change.
 
     private fun Context.cor(id: Int): Int = resources.getColor(id, null)
 
     /**
-     * O CARTÃO: a unidade de leitura das telas. Fundo um degrau acima da superfície e raio
-     * curto (degrau 8 da escala 14/10/8/6/4, ordem dele: "quase quadrada, ainda arredondada").
+     * THE CARD: the screens' reading unit. Background one step above the surface and a
+     * short radius (step 8 of the 14/10/8/6/4 scale, his order: "almost square, still rounded").
      */
     fun Context.cartao(): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
@@ -85,7 +85,7 @@ object Ui {
         layoutParams = lp
     }
 
-    /** Sobrescrita pequena e maiúscula: diz em que parte do app a pessoa está. */
+    /** Small uppercase overline: says which part of the app the person is in. */
     fun Context.kicker(texto: String): TextView = TextView(this).apply {
         text = texto.uppercase()
         textSize = 11f
@@ -109,9 +109,10 @@ object Ui {
     }
 
     /**
-     * A ÂNCORA: de onde no currículo aquele dado saiu. O glifo dourado é o mesmo do desenho.
-     * 🎓 É a peça que sustenta a promessa do produto: "não invento sobre você" não se prova
-     * com texto de marketing, se prova mostrando a procedência de cada dado.
+     * THE ANCHOR: where in the resume that piece of data came from. The gold glyph is the
+     * same one from the design.
+     * 🎓 It's the piece that backs up the product's promise: "I don't make things up about
+     * you" isn't proven with marketing copy, it's proven by showing each data point's provenance.
      */
     fun Context.ancora(texto: String): TextView = TextView(this).apply {
         val s = SpannableString("⌁ $texto")
@@ -122,7 +123,7 @@ object Ui {
         setPadding(0, dp(3), 0, 0)
     }
 
-    /** Rótulo do campo: pequeno, maiúsculo, acima do valor. */
+    /** Field label: small, uppercase, above the value. */
     fun Context.rotuloCampo(texto: String): TextView = TextView(this).apply {
         text = texto.uppercase()
         textSize = 10.5f
@@ -130,7 +131,7 @@ object Ui {
         setTextColor(cor(R.color.texto_secundario))
     }
 
-    /** O botão da AÇÃO principal da tela. Só um por tela, de propósito. */
+    /** The screen's main ACTION button. Only one per screen, on purpose. */
     fun Context.botaoPrimario(texto: String, aoTocar: (View) -> Unit): Button = Button(this).apply {
         text = texto
         isAllCaps = false
@@ -147,7 +148,7 @@ object Ui {
         ).apply { topMargin = dp(16) }
     }
 
-    /** Botão de ação secundária: contorno, sem peso de fundo. Vários por tela é ok. */
+    /** Secondary action button: outline, no background weight. Several per screen is fine. */
     fun Context.botaoSecundario(texto: String, aoTocar: (View) -> Unit): Button = Button(this).apply {
         text = texto
         isAllCaps = false
@@ -165,8 +166,9 @@ object Ui {
     }
 
     /**
-     * Linha de navegação: título, uma linha de estado e a seta. Estado inline de propósito,
-     * porque é o que responde "preciso entrar aqui?" sem a pessoa ter que entrar para ver.
+     * Navigation row: title, one status line, and the arrow. Inline status on purpose,
+     * because it's what answers "do I need to go in here?" without the person having to
+     * open it to find out.
      */
     fun Context.linhaNav(titulo: String, estado: String, aoTocar: (View) -> Unit): LinearLayout =
         LinearLayout(this).apply {
@@ -201,9 +203,9 @@ object Ui {
         }
 
     /**
-     * Item com PONTO de estado. A gramática do desenho aprovado: sálvia = sustentado pelo
-     * currículo, âmbar = lacuna DECLARADA, brasa = erro. ⛔ Lacuna não é erro, e a cor tem
-     * que dizer isso: é a categoria 4 da régua dele (o app não responde, e avisa).
+     * Item with a status DOT. The approved design's grammar: sage = backed by the resume,
+     * amber = DECLARED gap, ember = error. ⛔ A gap is not an error, and the color has to
+     * say so: it's category 4 of his rule (the app doesn't answer, and it says so).
      */
     fun Context.itemComPonto(
         titulo: String,
@@ -247,8 +249,8 @@ object Ui {
     }
 
     /**
-     * O PLACAR: numeral grande e leve, no estilo score do desenho. Peso 300 de propósito:
-     * número grande em negrito grita; grande e leve informa.
+     * THE TALLY: a large, light numeral, in the design's score style. Weight 300 on
+     * purpose: a large bold number shouts; large and light informs.
      */
     fun Context.placar(numero: String, legenda: String): LinearLayout =
         LinearLayout(this).apply {
@@ -269,7 +271,7 @@ object Ui {
             )
         }
 
-    /** Selo de afirmação do produto. Sem cápsula: ele foi explícito, "fora todos os chips". */
+    /** Product affirmation badge. No pill shape: he was explicit, "no chips at all". */
     fun Context.selo(texto: String, corDoTexto: Int = R.color.sucesso): TextView =
         TextView(this).apply {
             text = texto

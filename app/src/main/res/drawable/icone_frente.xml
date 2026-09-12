@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Três linhas de formulário, a última pela metade: o ícone diz "campo em branco".
-     Nada parecido com o ícone do Binspector, de propósito (ele distingue na gaveta). -->
+<!-- Three form lines, the last one halfway: the icon says "blank field".
+     Nothing like the Binspector icon, on purpose (he tells them apart in the drawer). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"

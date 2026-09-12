@@ -24,11 +24,12 @@ import com.mygoll.fourform.Ui.rotuloCampo
 import com.mygoll.fourform.Ui.selo
 
 /**
- * A porta de entrada, no desenho aprovado por ele em 12/09. Responde três perguntas NA
- * ORDEM em que a pessoa faz: o agente está pronto? meu perfil aguenta? como eu começo?
+ * The entry point, in the design approved by him on 09/12. Answers three questions IN
+ * THE ORDER a person asks them: is the agent ready? does my profile hold up? how do I start?
  *
- * 🎓 A ordem é o desenho. Antes esta tela abria com diagnóstico de build e crash, que é
- * informação do DESENVOLVEDOR. Quem abre o app quer saber se dá pra usar agora.
+ * 🎓 The order is the design. This screen used to open with build diagnostics and crash
+ * info, which is DEVELOPER information. Whoever opens the app wants to know if they can
+ * use it right now.
  */
 class MainActivity : Activity() {
 
@@ -57,7 +58,7 @@ class MainActivity : Activity() {
             )
         )
 
-        // 1 · ESTÁ PRONTO?
+        // 1 · IS IT READY?
         val cartaoEstado = cartao()
         cartaoEstado.addView(rotuloCampo("Agent status"))
         estadoServico = TextView(this).apply {
@@ -72,7 +73,7 @@ class MainActivity : Activity() {
         )
         col.addView(cartaoEstado)
 
-        // 2 · MEU PERFIL AGUENTA?
+        // 2 · DOES MY PROFILE HOLD UP?
         val cartaoPerfil = cartao()
         cartaoPerfil.addView(rotuloCampo("Your profile"))
         estadoPerfil = TextView(this).apply {
@@ -104,7 +105,7 @@ class MainActivity : Activity() {
         cartaoPerfil.addView(botaoSecundario("Erase everything from this device") { confirmarApagar() })
         col.addView(cartaoPerfil)
 
-        // 3 · O QUE MAIS EXISTE
+        // 3 · WHAT ELSE EXISTS
         val cartaoNav = cartao()
         cartaoNav.addView(
             linhaNav("Receipt", "what got filled and what stayed blank") {
@@ -123,7 +124,7 @@ class MainActivity : Activity() {
         )
         col.addView(cartaoNav)
 
-        // build e crash ficam no RODAPÉ: é informação de manutenção, não de uso
+        // build and crash stay in the FOOTER: it's maintenance information, not usage info
         textoBuild = TextView(this).apply {
             textSize = 11f
             typeface = android.graphics.Typeface.MONOSPACE
@@ -137,8 +138,8 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        // recarrega do disco: a tela de arquivo pode ter mesclado perfil novo enquanto
-        // esta caixa segurava texto velho, e o onPause salvaria o velho por cima
+        // reload from disk: the file screen may have merged a new profile while this
+        // box was holding old text, and onPause would save the old one right over it
         val texto = Store.perfilTexto(this)
         caixaPerfil.setText(texto)
 

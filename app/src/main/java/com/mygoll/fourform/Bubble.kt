@@ -18,23 +18,25 @@ import kotlin.math.hypot
 import kotlin.math.sin
 
 /**
- * A BOLHA: a interface ativa do agente (desenho ditado por ele em 12/09, no ônibus a caminho
- * do hackathon). A tese é dele e define o app: "o nosso app funciona nas sombras, então a
- * bolinha vai ser o agente, é a nossa interface com o cliente".
+ * THE BUBBLE: the agent's active interface (design dictated by him on 09/12, on the bus on
+ * the way to the hackathon). The thesis is his and it defines the app: "our app works in the
+ * shadows, so the bubble is going to be the agent, it's our interface with the customer".
  *
- * Por que uma janela PRÓPRIA e pequena, e não o painel de tela cheia: a janela acompanha o
- * tamanho da bolha, então o resto da tela continua do navegador. O painel antigo cobria tudo
- * e parava a pessoa para perguntar, que foi a reclamação dele às 06:55 do mesmo dia: "se ele
- * não vai marcar, segue pro próximo campo, não precisa me travar ali, isso trava".
+ * Why its OWN small window, and not the full-screen panel: the window matches the size of the
+ * bubble, so the rest of the screen stays the browser's. The old panel covered everything
+ * and stopped the person to ask a question, which was his complaint at 06:55 the same day:
+ * "if it's not going to check it, move on to the next field, no need to block me there, that
+ * gets in the way".
  *
- * Continua em TYPE_ACCESSIBILITY_OVERLAY, a janela que o próprio serviço de acessibilidade
- * desenha SEM permissão nova. ⛔ SYSTEM_ALERT_WINDOW não é pedido em lugar nenhum deste app,
- * e isso é trava de produto, não detalhe: pedir "desenhar sobre outros apps" é o atrito que
- * derruba instalação.
+ * Still TYPE_ACCESSIBILITY_OVERLAY, the window that the accessibility service itself draws
+ * WITHOUT a new permission. ⛔ SYSTEM_ALERT_WINDOW is not requested anywhere in this app,
+ * and that's a product constraint, not a detail: asking to "draw over other apps" is the
+ * friction that kills installs.
  *
- * Posição: canto SUPERIOR DIREITO com respiro da borda, FIXA, decisão dele. Ele recusou a
- * bolha em cima do campo (taparia o preenchimento, que é a prova de que funcionou) e recusou
- * também acompanhar a altura do campo. Canto fixo é previsível: sempre se sabe onde olhar.
+ * Position: TOP RIGHT corner with breathing room from the edge, FIXED, his decision. He
+ * rejected the bubble sitting on top of the field (it would cover the fill, which is the
+ * proof that it worked) and also rejected tracking the field's height. A fixed corner is
+ * predictable: you always know where to look.
  */
 class Bubble(
     private val service: AccessibilityService,
@@ -52,7 +54,7 @@ class Bubble(
     private var lixo: Lixeira? = null
     private var lp: WindowManager.LayoutParams? = null
 
-    /** Tamanho de alvo de toque do Android: 60dp é confortável sem virar obstáculo. */
+    /** Android touch target size: 60dp is comfortable without becoming an obstacle. */
     private val diametro get() = dp(60)
     private val respiro get() = dp(14)
 
@@ -62,14 +64,14 @@ class Bubble(
         val p = WindowManager.LayoutParams(
             diametro, diametro,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            // NOT_FOCUSABLE é o que faz o teclado e o toque continuarem indo para o
-            // navegador embaixo. Sem isso a bolha rouba o foco do formulário.
+            // NOT_FOCUSABLE is what keeps the keyboard and touches going to the
+            // browser underneath. Without it the bubble steals the form's focus.
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
             x = service.resources.displayMetrics.widthPixels - diametro - respiro
-            y = respiro + dp(36) // abaixo da barra de status
+            y = respiro + dp(36) // below the status bar
         }
         lp = p
         vista = v
@@ -90,7 +92,7 @@ class Bubble(
         lixo = null
     }
 
-    // ── arraste e descarte ────────────────────────────────────────────────────────────
+    // ── drag and discard ────────────────────────────────────────────────────────────
 
     private var baseX = 0
     private var baseY = 0
@@ -111,8 +113,8 @@ class Bubble(
             MotionEvent.ACTION_MOVE -> {
                 val dx = e.rawX - toqueX
                 val dy = e.rawY - toqueY
-                // só vira arraste depois do limiar do sistema; sem isso um toque com o
-                // dedo trêmulo vira arraste e a pessoa nunca consegue ABRIR a bolha.
+                // only becomes a drag past the system threshold; without this a tap with a
+                // shaky finger turns into a drag and the person can never OPEN the bubble.
                 if (!arrastando && hypot(abs(dx), abs(dy)) < dp(12)) return true
                 arrastando = true
                 if (lixo == null) lixo = Lixeira().also { it.mostrar() }
@@ -161,10 +163,10 @@ class Bubble(
     }
 
     /**
-     * ESTOURA, não quebra. Choice dele em 12/09, vendo as duas animações lado a lado.
-     * O argumento que venceu: vidro quebrado diz "morreu, deu errado"; bolha estourando diz
-     * "o trabalho desta tela acabou, e o agente não morreu". Encerrar a rodada ⛔ não é
-     * desligar o serviço, e a animação precisa contar isso certo.
+     * POPS, doesn't shatter. His choice on 09/12, watching both animations side by side.
+     * The argument that won: broken glass says "it died, something went wrong"; a popping
+     * bubble says "this screen's work is done, and the agent didn't die". Ending the round
+     * ⛔ is not turning off the service, and the animation needs to tell that story right.
      */
     private fun estourar() {
         val v = vista ?: return
@@ -186,20 +188,20 @@ class Bubble(
         }
     }
 
-    // ── desenho ───────────────────────────────────────────────────────────────────────
+    // ── drawing ───────────────────────────────────────────────────────────────────────
 
     private inner class Vista : View(service) {
         var estado = Estado.INTERPRETANDO
         var pendentes = 0
-        var estourando = -1f // <0 = não está estourando
+        var estourando = -1f // <0 = not popping
 
         private val tinta = Paint(Paint.ANTI_ALIAS_FLAG)
         private var fase = 0f
 
         init {
             setOnTouchListener { _, e -> aoTocarNaVista(e) }
-            // um único laço de animação para todos os estados: mais barato que um
-            // ValueAnimator por estado, e a fase única mantém tudo em sincronia.
+            // a single animation loop for every state: cheaper than one ValueAnimator
+            // per state, and the single phase keeps everything in sync.
             ValueAnimator.ofFloat(0f, 1f).apply {
                 duration = 1400
                 repeatCount = ValueAnimator.INFINITE
@@ -214,7 +216,7 @@ class Bubble(
             val cy = r
             if (estourando >= 0f) { desenharEstouro(canvas, cx, cy, r); return }
 
-            // miolo: a superfície escura, sempre. É o corpo do agente.
+            // core: the dark surface, always. It's the agent's body.
             tinta.style = Paint.Style.FILL
             tinta.color = cor(R.color.superficie)
             canvas.drawCircle(cx, cy, r - dp(3), tinta)
@@ -222,16 +224,16 @@ class Bubble(
             val acento = when (estado) {
                 Estado.PENDENCIA -> cor(R.color.aviso)
                 Estado.TERMINOU -> cor(R.color.sucesso)
-                // brasa só aqui: erro é a ÚNICA coisa que interrompe a família do ouro.
-                // Se vermelho aparecesse em pendência também, ele deixaria de significar
-                // "algo deu errado" e viraria decoração.
+                // ember only here: error is the ONLY thing that interrupts the gold family.
+                // If red also showed up for pending items, it would stop meaning
+                // "something went wrong" and become decoration.
                 Estado.ERRO -> cor(R.color.erro)
                 else -> cor(R.color.primaria)
             }
 
-            // ANEL: é ele que carrega o estado. Ele muda por MOVIMENTO e INTENSIDADE, não
-            // por matiz, porque a paleta dele tem 2 cores dominantes e semáforo colorido
-            // brigaria com "Cosmic Luxury". Ver notas do desenho de 12/09.
+            // RING: it's what carries the state. It changes by MOVEMENT and INTENSITY, not
+            // by hue, because his palette has 2 dominant colors and a colored traffic light
+            // would clash with "Cosmic Luxury". See the 09/12 design notes.
             tinta.style = Paint.Style.STROKE
             tinta.strokeWidth = dp(3).toFloat()
             tinta.strokeCap = Paint.Cap.ROUND
@@ -242,14 +244,14 @@ class Bubble(
                     canvas.drawCircle(cx, cy, r - dp(3), tinta)
                 }
                 Estado.INTERPRETANDO -> {
-                    // arco girando: está LENDO a tela
+                    // spinning arc: it's READING the screen
                     tinta.color = comAlfa(acento, 0.20f)
                     canvas.drawCircle(cx, cy, r - dp(3), tinta)
                     tinta.color = acento
                     canvas.drawArc(caixa, fase * 360f, 90f, false, tinta)
                 }
                 Estado.PREENCHENDO -> {
-                    // anel cheio pulsando: está AGINDO no campo
+                    // full ring pulsing: it's ACTING on the field
                     tinta.color = comAlfa(acento, 0.75f + 0.25f * sin(fase * 4 * Math.PI).toFloat())
                     canvas.drawCircle(cx, cy, r - dp(3), tinta)
                 }
@@ -258,8 +260,8 @@ class Bubble(
                     canvas.drawCircle(cx, cy, r - dp(3), tinta)
                 }
                 Estado.ERRO -> {
-                    // pulso LENTO, ⛔ não piscar rápido: precisa chamar atenção sem virar
-                    // alarme. A bolha vive sobre o formulário que a pessoa está usando.
+                    // SLOW pulse, ⛔ no fast blinking: needs to grab attention without
+                    // becoming an alarm. The bubble sits over the form the person is using.
                     tinta.color = comAlfa(acento, 0.6f + 0.4f * sin(fase * 2 * Math.PI).toFloat())
                     canvas.drawCircle(cx, cy, r - dp(3), tinta)
                 }
@@ -271,14 +273,14 @@ class Bubble(
             }
         }
 
-        /** O miolo diz a AÇÃO; o anel diz o estado. Dois canais, nenhum depende de cor. */
+        /** The core says the ACTION; the ring says the state. Two channels, neither relies on color. */
         private fun desenharMiolo(canvas: Canvas, cx: Float, cy: Float, acento: Int) {
             tinta.style = Paint.Style.FILL
             tinta.color = acento
             when (estado) {
                 Estado.OCIOSO -> canvas.drawCircle(cx, cy, dp(4).toFloat(), tinta)
                 Estado.INTERPRETANDO -> {
-                    // traço que varre lateralmente, como olho lendo uma linha
+                    // a stroke sweeping sideways, like an eye reading a line
                     val desloc = sin(fase * 2 * Math.PI).toFloat() * dp(6)
                     canvas.drawRoundRect(
                         cx - dp(7) + desloc, cy - dp(1.5f).toFloat(),
@@ -287,7 +289,7 @@ class Bubble(
                     )
                 }
                 Estado.PREENCHENDO -> {
-                    // três barrinhas surgindo em sequência: texto entrando no campo
+                    // three small bars appearing in sequence: text entering the field
                     val larguras = intArrayOf(dp(14), dp(10), dp(7))
                     for (i in larguras.indices) {
                         val vez = ((fase * 3f).toInt() % 3)
@@ -303,7 +305,7 @@ class Bubble(
                 }
                 Estado.PENDENCIA -> canvas.drawCircle(cx, cy, dp(4).toFloat(), tinta)
                 Estado.ERRO -> {
-                    // "!" desenhado: sobrevive sem fonte e em qualquer tamanho de tela
+                    // hand-drawn "!": survives without a font and at any screen size
                     canvas.drawRoundRect(
                         cx - dp(1.5f).toFloat(), cy - dp(8).toFloat(),
                         cx + dp(1.5f).toFloat(), cy + dp(2).toFloat(),
@@ -325,8 +327,8 @@ class Bubble(
         }
 
         /**
-         * Badge DENTRO da borda, de propósito: a bolha vive encostada no canto da tela, e
-         * badge pendurado para fora seria cortado pela borda do display.
+         * Badge INSIDE the edge, on purpose: the bubble sits flush against the screen
+         * corner, and a badge hanging outside would get clipped by the display edge.
          */
         private fun desenharBadge(canvas: Canvas, n: Int, erro: Boolean) {
             val bx = dp(13).toFloat()
@@ -343,12 +345,12 @@ class Bubble(
         private fun desenharEstouro(canvas: Canvas, cx: Float, cy: Float, r: Float) {
             val t = estourando
             tinta.color = cor(R.color.primaria)
-            // onda expandindo e sumindo
+            // wave expanding and fading
             tinta.style = Paint.Style.STROKE
             tinta.strokeWidth = dp(3) * (1f - t)
             tinta.alpha = ((1f - t) * 255).toInt()
             canvas.drawCircle(cx, cy, r * (0.6f + t * 0.9f), tinta)
-            // respingos: 6 pingos saindo do centro
+            // splatter: 6 droplets flying out from the center
             tinta.style = Paint.Style.FILL
             for (i in 0 until 6) {
                 val ang = i * 60.0 * Math.PI / 180.0
@@ -370,8 +372,8 @@ class Bubble(
     }
 
     /**
-     * O alvo de descarte: padrão conhecido do Android (a lixeira que sobe do rodapé no
-     * arraste). Só existe enquanto a bolha está sendo arrastada.
+     * The discard target: a familiar Android pattern (the trash can that rises from the
+     * bottom while dragging). Only exists while the bubble is being dragged.
      */
     private inner class Lixeira {
         private var vista: View? = null
@@ -386,7 +388,7 @@ class Bubble(
                     tinta.style = Paint.Style.FILL
                     tinta.color = if (perto) cor(R.color.erro) else cor(R.color.superficie_recipiente_alto)
                     val lado = (if (perto) dp(30) else dp(26)).toFloat()
-                    // quadrado de canto curto: a escala de raio vale para a lixeira também
+                    // short-corner square: the radius scale applies to the trash can too
                     canvas.drawRoundRect(
                         cx - lado, cy - lado, cx + lado, cy + lado,
                         dp(8).toFloat(), dp(8).toFloat(), tinta,

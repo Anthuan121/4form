@@ -1,22 +1,22 @@
 package com.mygoll.fourform.scan
 
-/** Retângulo em pixels de tela, sem android.graphics.Rect para o núcleo rodar em teste JVM. */
+/** Rectangle in screen pixels, without android.graphics.Rect so the core runs in a JVM test. */
 data class Box(val esq: Int, val topo: Int, val dir: Int, val baixo: Int)
 
 data class RotuloVizinho(val texto: String, val distanciaPx: Int)
 
 /**
- * Um campo de ESCOLHA (checkbox, radio, select, data). O app hoje é cego para eles: a
- * varredura só coletava isEditable, ou seja, só caixa de texto. Metade de um formulário de
- * vaga é escolha, então "não preencheu quase nada" pode ser "não VIU quase nada".
+ * A CHOICE field (checkbox, radio, select, date). The app is blind to them today: the
+ * scan only collected isEditable, meaning only text boxes. Half of a job form is choice,
+ * so "barely filled anything" can mean "barely SAW anything".
  *
- * ⛔ Esta fase só CONTA, não age: primeiro medir quanto do formulário estava invisível,
- * depois decidir se vale implementar o clique. Medir antes de construir custa um número e
- * evita construir a coisa errada.
+ * ⛔ This phase only COUNTS, it doesn't act: measure how much of the form was invisible
+ * first, then decide whether implementing the click is worth it. Measuring before
+ * building costs one number and avoids building the wrong thing.
  *
- * ⛔ O ESTADO (marcado/desmarcado) não entra aqui de propósito: "sou cidadão da UE: sim" é
- * dado pessoal, e este objeto alimenta o diagnóstico que SAI do aparelho. Rótulo e tipo
- * bastam para a medição; a régua de zero conteúdo pessoal do 242 continua de pé.
+ * ⛔ The STATE (checked/unchecked) doesn't go in here on purpose: "I'm an EU citizen: yes"
+ * is personal data, and this object feeds the diagnostic that LEAVES the device. Label
+ * and type are enough for the measurement; the 242 rule of zero personal content still stands.
  */
 data class Choice(
     val tipo: String,
@@ -24,26 +24,26 @@ data class Choice(
     val viewId: String? = null,
     val caixa: Box = Box(0, 0, 0, 0),
     val dentroDeWebView: Boolean = false,
-    /** true = a árvore aceita ACTION_CLICK neste nó; false = dá pra ver, não dá pra operar. */
+    /** true = the tree accepts ACTION_CLICK on this node; false = visible, but can't be operated. */
     val clicavel: Boolean = false,
-    /** Estado atual: nasce do isChecked da árvore e vira true quando o app marca. */
+    /** Current state: starts from the tree's isChecked and turns true when the app checks it. */
     val marcada: Boolean = false,
     /**
-     * A PERGUNTA a que esta opção responde ("Você reside num país europeu?"), quando dá pra
-     * achar no texto acima do grupo. Sem ela, "Yes" é uma palavra solta: o app comparava o
-     * rótulo da OPÇÃO com o perfil e nunca casava nada, porque nenhum perfil contém "Yes".
-     * Found dele em 12/09, preenchendo uma vaga de verdade.
+     * The QUESTION this option answers ("Do you reside in a European country?"), when it
+     * can be found in the text above the group. Without it, "Yes" is a loose word: the
+     * app used to compare the OPTION's label to the profile and never matched anything,
+     * because no profile contains "Yes". His finding on 09/12, filling out a real job form.
      */
     val pergunta: String? = null,
 ) {
-    /** Identidade entre varreduras: o mesmo radio reaparece depois da rolagem com outra caixa. */
+    /** Identity across scans: the same radio reappears after scrolling with a different box. */
     val chave: String get() = "$tipo|${viewId ?: ""}|${rotulo ?: caixa.topo}"
 }
 
 /**
- * Fotografia de um nó editável da árvore de acessibilidade.
- * Field de senha nasce com textoAtual = null: o texto de senha nunca é lido (trava dura,
- * aplicada já na varredura, antes de qualquer decisão).
+ * A snapshot of one editable node in the accessibility tree.
+ * A password Field is born with textoAtual = null: password text is never read (a hard
+ * lock, applied right at the scan, before any decision).
  */
 data class Field(
     val chave: String,
@@ -55,30 +55,31 @@ data class Field(
     val caixa: Box = Box(0, 0, 0, 0),
     val textoAtual: String? = null,
     val dentroDeWebView: Boolean = false,
-    // labeledBy é a relação EXPLÍCITA de rótulo da árvore (o Chrome a preenche a partir de
-    // <label for>, aria-label, aria-labelledby): é o rótulo que o AUTOR da página declarou,
-    // não um palpite geométrico. Por isso é o topo da escada (brief 242).
+    // labeledBy is the tree's EXPLICIT label relationship (Chrome fills it from
+    // <label for>, aria-label, aria-labelledby): it's the label the page's AUTHOR
+    // declared, not a geometric guess. That's why it's the top of the ladder (brief 242).
     val labeledBy: String? = null,
-    // o nó TINHA a relação labeledBy, mesmo que o alvo não carregasse texto útil —
-    // instrumentação para o diagnóstico dizer "havia labeledBy, mas vazio".
+    // the node HAD the labeledBy relationship, even if the target carried no useful
+    // text. Instrumentation so the diagnostic can say "there was a labeledBy, but empty".
     val labeledByPresente: Boolean = false,
-    // texto de um irmão anterior no mesmo pai, coletado só em WebView: rótulo ESTRUTURAL
-    // (o <label> costuma ser irmão do <input>), mais confiável que distância em pixels.
+    // text from a preceding sibling in the same parent, collected only in WebView:
+    // STRUCTURAL label (the <label> is usually a sibling of the <input>), more reliable
+    // than pixel distance.
     val rotuloIrmao: String? = null,
     /**
-     * true = outro campo desta MESMA tela tem o mesmo hint. Um hint que serve a dois campos
-     * não nomeia nenhum dos dois, então a escada de rótulo pula o nível e cai no vizinho.
-     * ⛔ Não entra na chave estável: a chave continua usando o hint bruto, senão o mesmo
-     * campo mudaria de identidade entre varreduras.
+     * true = another field on this SAME screen has the same hint. A hint that serves two
+     * fields doesn't name either of them, so the label ladder skips that level and falls
+     * to the neighbor. ⛔ Doesn't go into the stable key: the key still uses the raw hint,
+     * otherwise the same field would change identity between scans.
      */
     val hintRepetidoNaTela: Boolean = false,
-    // desde o 242 SEM teto de raio: o mais próximo que existir. O raio é aplicado na hora
-    // de USAR (Labeler.rotulo); guardar o vizinho longe deixa o diagnóstico dizer
-    // "havia texto a 380px" em vez de fingir que não havia nada.
+    // since 242, NO radius cap: whatever is closest, however far. The radius is applied
+    // at USE time (Labeler.rotulo); keeping the far neighbor lets the diagnostic say
+    // "there was text at 380px" instead of pretending there was nothing.
     val rotuloVizinho: RotuloVizinho? = null,
 )
 
-/** Um dado que o app aprendeu observando o usuário. origem: "corrigiu" | "preencheu". */
+/** A fact the app learned by observing the user. origem: "corrigiu" (corrected) | "preencheu" (filled). */
 data class Learned(
     val rotulo: String,
     val valor: String,

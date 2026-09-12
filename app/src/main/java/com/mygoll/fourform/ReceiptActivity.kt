@@ -17,13 +17,13 @@ import com.mygoll.fourform.Ui.rotuloCampo
 import com.mygoll.fourform.Ui.selo
 
 /**
- * O RECIBO (ideia dele, 09/09): a sessão acabou, o app mostra o que fez e o que aprendeu,
- * com DESFAZER por item. Aprender sem poder desaprender não é controle.
+ * THE RECEIPT (his idea, 09/09): the session is over, the app shows what it did and what
+ * it learned, with UNDO per item. Learning without being able to unlearn isn't control.
  *
- * Desenho de 12/09. A gramática de cor é a mesma das outras telas e é o miolo do produto:
- * sálvia = sustentado pelo seu perfil · âmbar = LACUNA DECLARADA, ⛔ não erro. A categoria 4
- * da régua dele ("o app não responde e avisa") precisa parecer virtude, porque é o que
- * separa este app dos concorrentes, que chutariam.
+ * Design from 09/12. The color grammar is the same as the other screens and it's the
+ * product's core: sage = backed by your profile · amber = DECLARED GAP, ⛔ not an error.
+ * Category 4 of his rule ("the app doesn't answer and says so") needs to look like a
+ * virtue, because that's what separates this app from competitors, which would guess.
  */
 class ReceiptActivity : Activity() {
 

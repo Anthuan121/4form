@@ -5,46 +5,47 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Sobe o diagnóstico para a sonda de bancada. SÓ NA BUILD DE TESTE (brief avulso 10/09).
+ * Uploads the diagnostic to the bench probe. TEST BUILD ONLY (standalone brief 09/10).
  *
- * Duas travas independentes, de propósito:
- *   1. android.permission.INTERNET só existe em app/src/debug/AndroidManifest.xml;
- *   2. o guarda BuildConfig.DEBUG abaixo, que faz o release nem tentar.
- * Uma trava é do sistema de build, a outra do código. Se alguém mover o manifest sem
- * perceber, a segunda ainda segura.
+ * Two independent locks, on purpose:
+ *   1. android.permission.INTERNET only exists in app/src/debug/AndroidManifest.xml;
+ *   2. the BuildConfig.DEBUG guard below, which keeps release from even trying.
+ * One lock lives in the build system, the other in the code. If someone moves the manifest
+ * without noticing, the second one still holds.
  *
- * O que sobe é o MESMO json do arquivo local, e ele já foi construído para não carregar
- * valor de campo nem nada de campo de senha (Diagnostics.kt, com teste provando). Se
- * carregasse, não subiria: o produto que promete não vazar teria vazado no próprio teste.
+ * What gets uploaded is the SAME json as the local file, and it was already built to not
+ * carry field values or anything from a password field (Diagnostics.kt, with a test proving
+ * it). If it did, it wouldn't upload: the product that promises not to leak would have
+ * leaked in its own test.
  *
- * HttpURLConnection e não uma biblioteca: o projeto tem zero dependência de runtime e este
- * é um PUT de 6 linhas. Thread crua e não corrotina/executor pela mesma razão — é uma
- * chamada solta por varredura, não um pipeline.
+ * HttpURLConnection and not a library: the project has zero runtime dependencies and this
+ * is a 6-line PUT. A raw Thread and not a coroutine/executor for the same reason. It's a
+ * one-off call per scan, not a pipeline.
  */
 object Bench {
 
     fun enviar(json: String, quandoMs: Long) {
         if (!BuildConfig.DEBUG) return
-        // Thread própria: rede na main thread lança NetworkOnMainThreadException, e aqui a
-        // main thread é a do serviço de acessibilidade — travá-la trava o preenchimento
-        // NA CARA da pessoa, que é a única coisa que a demo não pode fazer.
+        // Own thread: networking on the main thread throws NetworkOnMainThreadException, and
+        // here the main thread is the accessibility service's. Freezing it freezes the fill
+        // RIGHT IN FRONT of the person, which is the one thing the demo cannot do.
         Thread {
             runCatching {
                 val con = URL(Probe.url(quandoMs)).openConnection() as HttpURLConnection
                 con.requestMethod = "PUT"
                 con.doOutput = true
-                // Curtos porque a sonda é conforto, não requisito: 3G ruim no dia do
-                // hackathon não pode virar meio minuto de thread pendurada.
+                // Short timeouts because the probe is a comfort, not a requirement: bad 3G
+                // on hackathon day cannot turn into half a minute of a hung thread.
                 con.connectTimeout = 4000
                 con.readTimeout = 4000
                 con.setRequestProperty("Content-Type", "application/json")
                 con.outputStream.use { it.write(json.toByteArray(Charsets.UTF_8)) }
-                con.responseCode // dispara o envio
+                con.responseCode // triggers the send
                 con.disconnect()
             }
-            // runCatching sem else de propósito: sonda fora do ar, sem rede ou DNS caído
-            // NUNCA derruba o preenchimento. Falha silenciosa é o comportamento certo
-            // para telemetria — o app é o produto, a sonda é o microscópio.
+            // runCatching with no else on purpose: probe offline, no network, or DNS down
+            // NEVER brings down the fill. Silent failure is the right behavior for
+            // telemetry. The app is the product, the probe is the microscope.
         }.start()
     }
 }

@@ -1,24 +1,24 @@
 package com.mygoll.fourform.agent
 
 /**
- * A parte PURA da sonda de bancada: como se chama o arquivo que sobe e para onde ele vai.
- * Fica aqui, longe de Android, para ter teste — a parte que fala com a rede (Bench.kt)
- * é fina de propósito, porque rede não se testa em JVM.
+ * The PURE part of the bench probe: what the uploaded file is named and where it goes.
+ * Lives here, away from Android, so it can be tested. The part that talks to the network
+ * (Bench.kt) is thin on purpose, because networking isn't testable in a JVM.
  *
- * Contexto (10/09/2026): mesma sonda que o Binspector usa desde 12/08. É PUT puro no módulo
- * WebDAV do nginx: sem serviço, sem código de servidor, sem porta nova. O caminho tem um
- * segredo no meio da URL e o nginx recusa qualquer método que não seja PUT, então nem quem
- * descobrir o endereço consegue LER de volta o que subiu.
+ * Context (09/10/2026): the same probe Binspector has used since 08/12. It's a plain PUT
+ * to nginx's WebDAV module: no service, no server code, no new port. The path carries a
+ * secret in the middle of the URL, and nginx refuses any method other than PUT, so not
+ * even whoever discovers the address can READ back what was uploaded.
  */
 object Probe {
 
     const val BASE = "https://hooks.mygoll.com/sonda/fxjSuQ7VJfaa1ZOiSK0dI8jHgwI4/"
 
     /**
-     * Um arquivo por envio, nunca sobrescrito, com o milissegundo no nome: é o que deixa o
-     * CC ver a SEQUÊNCIA de varreduras ("na 1ª volta leu 3 campos, na 2ª apareceram mais 4")
-     * em vez de só o retrato final. Prefixo "preenche-" separa dos dumps do Binspector, que
-     * moram na mesma pasta.
+     * One file per upload, never overwritten, with the millisecond in the name: this is
+     * what lets CC see the SEQUENCE of scans ("round 1 read 3 fields, round 2 had 4 more
+     * show up") instead of just the final snapshot. The "preenche-" prefix separates it
+     * from Binspector's dumps, which live in the same folder.
      */
     fun nome(quandoMs: Long): String = "preenche-$quandoMs.json"
 

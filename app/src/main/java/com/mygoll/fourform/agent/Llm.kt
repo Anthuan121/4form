@@ -7,45 +7,47 @@ import com.mygoll.fourform.scan.Matcher
 import com.mygoll.fourform.scan.Extractor
 
 /**
- * A resposta de pergunta aberta (brief 245): campo que a escada identificou mas o perfil
- * não responde deixa de morrer em "não tenho esse dado" e vira pergunta à LLM da casa,
- * ANCORADA no perfil. A régua anti-invenção é o produto, não o freio: resposta sem
- * âncora, ou com âncora que não existe no perfil, é tratada como invenção e rebaixada
- * para campo aberto. E resposta de LLM NUNCA é escrita sem toque da pessoa.
+ * The open-question answer (brief 245): a field the ladder identified but the profile
+ * doesn't answer no longer dies as "I don't have this data" and instead becomes a
+ * question to the house LLM, ANCHORED to the profile. The anti-invention rule is the
+ * product, not the brake: an answer with no anchor, or with an anchor that doesn't exist
+ * in the profile, is treated as invention and downgraded to an open field. And an LLM
+ * answer is NEVER written without the person's tap.
  *
- * Este arquivo é PURO (testável em JVM): candidatura, corpo da requisição, validação da
- * resposta e aplicação do veredito. A rede vive em LlmBridge.kt, fina de propósito.
+ * This file is PURE (testable in a JVM): candidacy, request body, response validation,
+ * and applying the verdict. Networking lives in LlmBridge.kt, thin on purpose.
  */
 object Llm {
 
     const val MODELO = "nina-default"
 
-    // ⛔ A URL DA PONTE NÃO MORA MAIS AQUI (10/09, véspera da submissão). Ela carrega o
-    // segredo que autentica o app, e o repo pode ir público. Agora vem de local.properties
-    // (que está no .gitignore) → BuildConfig → LlmBridge.kt, que é código de app.
+    // ⛔ THE BRIDGE URL NO LONGER LIVES HERE (09/10, the eve of submission). It carries the
+    // secret that authenticates the app, and the repo can go public. It now comes from
+    // local.properties (which is in .gitignore) -> BuildConfig -> LlmBridge.kt, which is app code.
     //
-    // 🎓 Por que não basta mover para uma constante em outro arquivo: `nucleo/` é compilado
-    // e testado SEM o framework Android, e é isso que faz os 120 testes rodarem em
-    // milissegundos. Uma referência a BuildConfig aqui arrastaria o Android para dentro do
-    // núcleo. Então quem conhece a URL é quem já fala com a rede: LlmBridge.
+    // 🎓 Why moving it to a constant in another file isn't enough: `nucleo/` is compiled
+    // and tested WITHOUT the Android framework, and that's what makes the 120 tests run
+    // in milliseconds. A reference to BuildConfig here would drag Android into the core.
+    // So whoever already talks to the network knows the URL: LlmBridge.
 
     data class Sugestao(val resposta: String, val ancora: String, val confianca: String)
 
     sealed class Veredito {
         data class Responder(val sugestao: Sugestao) : Veredito()
 
-        /** doModelo=true quando foi a PRÓPRIA LLM que disse "não dá": aí o motivo dela vira o motivo do campo. */
+        /** doModelo=true when the LLM ITSELF said "can't": then its reason becomes the field's reason. */
         data class NaoResponder(val motivo: String, val doModelo: Boolean) : Veredito()
     }
 
-    /** O que do episódio entra no diagnóstico: desfecho, confiança e tempo. NUNCA a resposta nem a âncora. */
+    /** What from the episode goes into the diagnostic: outcome, confidence, and time. NEVER the answer or the anchor. */
     data class LlmDiagnostico(val desfecho: String, val confianca: String?, val latenciaMs: Long?)
 
     /**
-     * Quem pode virar pergunta: campo que ficou ABERTO com rótulo confiável e sem dado no
-     * perfil. Senha e campo com texto digitado NUNCA (nem o rótulo da senha sobe);
-     * viewId-cru não é pergunta; campo que recusou escrita não adianta responder; e o que
-     * a pessoa desfez não volta pela porta da IA.
+     * What can become a question: a field that stayed OPEN with a reliable label and no
+     * data in the profile. Password and a field with typed text NEVER (not even the
+     * password's label goes up); a raw viewId isn't a question; a field that refused a
+     * write isn't worth answering; and whatever the person undid doesn't come back
+     * through the AI's door.
      */
     fun candidato(r: Session.Registro): Boolean =
         r.acao == "aberto" &&
@@ -60,9 +62,10 @@ object Llm {
         registros.filter { candidato(it) }
 
     /**
-     * As linhas de perfil que sobem no prompt: aprendidos (o mais recente por rótulo)
-     * VENCEM e ESCONDEM a linha base equivalente — se a pessoa corrigiu "cidade" uma vez,
-     * a LLM nunca mais vê o valor velho. É a precedência do 3º ato dentro do prompt.
+     * The profile lines that go into the prompt: learned entries (the most recent per
+     * label) WIN and HIDE the equivalent base line. If the person corrected "cidade"
+     * once, the LLM never sees the old value again. It's the 3rd act's precedence,
+     * carried into the prompt.
      */
     fun linhasDePerfil(textoBase: String, aprendidos: List<Learned>): List<String> {
         val vivos = aprendidos.sortedByDescending { it.quandoMs }
@@ -78,9 +81,9 @@ object Llm {
     }
 
     /**
-     * O corpo do POST. Recebe SÓ o rótulo do campo (público: está escrito na página) e as
-     * linhas do perfil que a pessoa confirmou — por construção, valor digitado na tela e
-     * qualquer coisa de senha não têm como entrar aqui.
+     * The POST body. Receives ONLY the field's label (public: it's written on the page)
+     * and the profile lines the person confirmed. By construction, a value typed on
+     * screen and anything from a password have no way to get in here.
      */
     fun corpo(rotulo: String, linhasDePerfil: List<String>): String {
         val prompt = buildString {
@@ -91,9 +94,10 @@ object Llm {
             append("Responda SOMENTE com um JSON, sem texto em volta:\n")
             append("{\"pode_responder\": true|false, \"resposta\": \"...\", \"ancora\": \"...\", \"confianca\": \"alta|media|baixa\"}\n")
             append("- \"resposta\": o texto pronto para entrar no campo, redigido SÓ a partir do perfil, no idioma do campo.\n")
-            // Found dele em 10/09: o perfil pode estar numa língua e o formulário em outra
-            // (perfil em português, Greenhouse em inglês). Quem manda é o RÓTULO do campo,
-            // não a língua do perfil nem a do aparelho — o mesmo perfil serve a qualquer país.
+            // His finding on 09/10: the profile can be in one language and the form in
+            // another (profile in Portuguese, Greenhouse in English). What decides is the
+            // field's LABEL, not the profile's language or the device's. The same profile
+            // serves any country.
             append("- IDIOMA: responda no idioma do RÓTULO do campo, mesmo que o perfil esteja em outro. ")
             append("Se o perfil diz \"nao\" e o campo pergunta em inglês, a resposta é \"No\".\n")
             append("- ⛔ NUNCA traduza nome de pessoa, e-mail, telefone, URL, nome de empresa ou de instituição: ")
@@ -107,10 +111,10 @@ object Llm {
     }
 
     /**
-     * Da resposta HTTP (ou da falha) ao veredito. NUNCA lança: qualquer coisa ilegível,
-     * cortada ou sem âncora degrada para NaoResponder — o campo continua aberto,
-     * exatamente como hoje. Tolerante a cerca ```json e a texto em volta (MEDIDO no teste
-     * real de 10/09, não hipótese).
+     * From the HTTP response (or the failure) to the verdict. NEVER throws: anything
+     * unreadable, cut off, or with no anchor degrades to NaoResponder. The field stays
+     * open, exactly as it does today. Tolerant of a ```json fence and surrounding text
+     * (MEASURED in the real 09/10 test, not a hypothesis).
      */
     fun avaliar(resultadoHttp: Result<String>, linhasDePerfil: List<String>): Veredito {
         val bruto = resultadoHttp.getOrElse {
@@ -121,8 +125,8 @@ object Llm {
     }
 
     private fun avaliarConteudo(bruto: String, linhas: List<String>): Veredito {
-        // envelope OpenAI: choices[0].message.content — corte truncado é salvo parcialmente
-        // (exigirFim=false) porque a validação estrita acontece no JSON de dentro
+        // OpenAI envelope: choices[0].message.content. A truncated cut is partially saved
+        // (exigirFim=false) because strict validation happens on the JSON inside
         val conteudo = lerString(bruto, "content", exigirFim = false)
             ?: return Veredito.NaoResponder("the AI responded with no content", doModelo = false)
         val i = conteudo.indexOf('{')
@@ -147,9 +151,10 @@ object Llm {
     }
 
     /**
-     * Aplica o veredito ao registro e devolve o desfecho (insumo do diagnóstico).
-     * ⛔ NUNCA escreve no campo nem muda acao: escrever é decisão da pessoa, no painel.
-     * Falha de rede/parse deixa o campo EXATAMENTE como estava (motivo original intocado).
+     * Applies the verdict to the record and returns the outcome (input for the
+     * diagnostic). ⛔ NEVER writes to the field or changes acao: writing is the person's
+     * decision, in the panel. A network/parse failure leaves the field EXACTLY as it was
+     * (original reason untouched).
      */
     fun aplicar(reg: Session.Registro, veredito: Veredito, sugestoes: MutableMap<String, Sugestao>): String =
         when (veredito) {
@@ -167,22 +172,22 @@ object Llm {
         }
 
     // ─────────────────────────────────────────────────────────────────────────────
-    // LEITURA DO CURRÍCULO (10/09, achado dele no aparelho: 55 linhas em "não entendi")
+    // RESUME READING (09/10, his finding on the device: 55 lines in "didn't understand")
     //
-    // O Extractor (244) é conservador de propósito: só vira par o que TEM CARA de dado
-    // (curto, sem vírgula, sem ponto final). Isso derrubou o lixo de 5 pares por currículo
-    // para 0 — e, no mesmo movimento, deixou "Product Designer · Banking · Insurance" e
-    // "EU citizen (Italian)" paradas em "não entendi". Régua não distingue as duas: essa
-    // é a fronteira onde só interpretação separa dado de prosa.
+    // The Extractor (244) is conservative on purpose: only turns into a pair what LOOKS
+    // LIKE data (short, no comma, no period). That dropped the junk from 5 pairs per
+    // resume to 0, and in the same move left "Product Designer · Banking · Insurance"
+    // and "EU citizen (Italian)" stuck in "didn't understand". The rule doesn't tell the
+    // two apart: that's the boundary where only interpretation separates data from prose.
     //
-    // ⛔ A régua do Extractor FICA. Ela é a rede quando a IA está fora do ar. Isto aqui é
-    // um degrau OPCIONAL por cima, e continua caindo na mesma tela de confirmação.
+    // ⛔ The Extractor's rule STAYS. It's the safety net when the AI is offline. This here
+    // is an OPTIONAL step on top, and it still lands on the same confirmation screen.
     // ─────────────────────────────────────────────────────────────────────────────
 
-    /** Um par que a IA propôs a partir de uma linha do documento. `linha` é a origem, para conferência. */
+    /** A pair the AI proposed from a line in the document. `linha` is the source, for review. */
     data class ParProposto(val chave: String, val valor: String, val linha: Int, val origem: String)
 
-    /** Teto de linhas por chamada: currículo grande não vira requisição gigante nem resposta cortada. */
+    /** Line cap per call: a large resume doesn't become a giant request or a cut-off response. */
     const val MAX_LINHAS_PERFIL = 120
 
     fun corpoPerfil(linhas: List<LinhaNaoEntendida>): String {
@@ -208,10 +213,11 @@ object Llm {
     }
 
     /**
-     * Da resposta HTTP à lista de pares propostos. NUNCA lança: qualquer falha devolve
-     * lista vazia e a tela continua exatamente como está hoje (as linhas em "não entendi",
-     * promovíveis a dedo). Mesma régua anti-invenção da âncora: **o valor tem que existir
-     * na linha que a IA citou**. Se não existe, é fabricação e o par é descartado.
+     * From the HTTP response to the list of proposed pairs. NEVER throws: any failure
+     * returns an empty list and the screen stays exactly as it is today (the "didn't
+     * understand" lines, promotable by hand). Same anti-invention rule as the anchor:
+     * **the value has to exist in the line the AI cited**. If it doesn't, it's
+     * fabrication and the pair is discarded.
      */
     fun avaliarPerfil(resultadoHttp: Result<String>, linhas: List<LinhaNaoEntendida>): List<ParProposto> =
         runCatching { avaliarPerfilConteudo(resultadoHttp.getOrThrow(), linhas) }.getOrElse { emptyList() }
@@ -221,19 +227,20 @@ object Llm {
         val porNumero = linhas.associateBy { it.linha }
         val vistos = LinkedHashSet<String>()
         val saida = mutableListOf<ParProposto>()
-        // um objeto por par; o último pode vir cortado e é simplesmente ignorado
+        // one object per pair; the last one can arrive cut off and is simply ignored
         for (m in Regex("\\{[^{}]*\\}").findAll(conteudo)) {
             val bloco = m.value
             val chave = lerString(bloco, "chave", exigirFim = true)?.trim()?.lowercase() ?: continue
             val valor = lerString(bloco, "valor", exigirFim = true)?.trim() ?: continue
             val numero = Regex("\"linha\"\\s*:\\s*(\\d+)").find(bloco)?.groupValues?.get(1)?.toIntOrNull() ?: continue
             if (chave.isEmpty() || valor.isEmpty()) continue
-            val origem = porNumero[numero] ?: continue // citou linha que não mandamos: descarta
-            if (!valorSaiuDaLinha(valor, origem.texto)) continue // fabricação: descarta
-            // A IA lê currículo em inglês e propõe chave em português (MEDIDO em 10/09:
-            // "anos_experiencia" saiu de um CV inteiro em inglês). O formulário pergunta em
-            // inglês e o Matcher compara palavra a palavra: sem a gêmea, dado que EXISTE
-            // vira "não tenho esse dado". Tabela FIXA, nunca tradução adivinhada.
+            val origem = porNumero[numero] ?: continue // cited a line we didn't send: discard
+            if (!valorSaiuDaLinha(valor, origem.texto)) continue // fabrication: discard
+            // The AI reads an English resume and proposes a Portuguese key (MEASURED on
+            // 09/10: "anos_experiencia" came out of a resume entirely in English). The
+            // form asks in English and the Matcher compares word by word: without the
+            // twin, data that EXISTS turns into "I don't have this data". A FIXED table,
+            // never guessed translation.
             for (nome in Extractor.bilingue(chave)) {
                 if (!vistos.add(Matcher.normalizar(nome) + " " + Matcher.normalizar(valor))) continue
                 saida.add(ParProposto(nome, valor, numero, origem.texto.trim()))
@@ -242,14 +249,14 @@ object Llm {
         return saida
     }
 
-    /** O valor precisa estar DENTRO do texto da linha citada. É a mesma prova da âncora, aplicada à leitura. */
+    /** The value needs to be INSIDE the cited line's text. Same proof as the anchor, applied to reading. */
     private fun valorSaiuDaLinha(valor: String, textoDaLinha: String): Boolean {
         val v = Matcher.normalizar(valor)
         val l = Matcher.normalizar(textoDaLinha)
         return v.isNotEmpty() && l.isNotEmpty() && l.contains(v)
     }
 
-    /** A âncora tem que EXISTIR no perfil (dos dois lados, com folga de forma): senão é fabricação. */
+    /** The anchor has to EXIST in the profile (either direction, with some shape slack): otherwise it's fabrication. */
     private fun ancoraExiste(ancora: String, linhas: List<String>): Boolean {
         val a = Matcher.normalizar(ancora)
         if (a.isEmpty()) return false
@@ -260,9 +267,9 @@ object Llm {
     }
 
     /**
-     * Lê o valor string da PRIMEIRA ocorrência de "chave": "..." respeitando escapes.
-     * exigirFim=false devolve o que acumulou quando a string não fecha (JSON truncado);
-     * exigirFim=true devolve null — meia resposta nunca entra num formulário.
+     * Reads the string value from the FIRST occurrence of "key": "..." respecting escapes.
+     * exigirFim=false returns what was accumulated when the string doesn't close
+     * (truncated JSON); exigirFim=true returns null. Half an answer never goes into a form.
      */
     private fun lerString(texto: String, chave: String, exigirFim: Boolean): String? {
         val m = Regex("\"${Regex.escape(chave)}\"\\s*:\\s*\"").find(texto) ?: return null
@@ -282,7 +289,7 @@ object Llm {
                             i += 4
                         }
                     }
-                    else -> sb.append(e) // \" \\ \/ e qualquer escape desconhecido: o literal
+                    else -> sb.append(e) // \" \\ \/ and any unknown escape: the literal
                 }
                 i += 2
             } else {

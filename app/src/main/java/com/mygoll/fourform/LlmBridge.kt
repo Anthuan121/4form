@@ -6,20 +6,21 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * A rede da resposta aberta (brief 245). Fina de propósito: POST, 200 ou exceção — quem
- * decide o que fazer com o corpo (ou com a falha) é Llm.avaliar, puro e testado.
+ * The networking for the open-ended response (brief 245). Thin on purpose: POST, 200, or
+ * exception. Who decides what to do with the body (or the failure) is Llm.avaliar, pure
+ * and tested.
  *
- * Roda SEMPRE fora da main thread (FourFormService.consultarLlm): a main thread aqui é a
- * do serviço de acessibilidade, e travá-la congela o preenchimento na cara da pessoa.
- * INTERNET só existe na variante debug — no release esta chamada falha na hora e o campo
- * continua aberto, que é a degradação combinada.
+ * ALWAYS runs off the main thread (FourFormService.consultarLlm): the main thread here is
+ * the accessibility service's, and freezing it freezes the fill right in front of the
+ * person. INTERNET only exists in the debug variant. In release this call fails instantly
+ * and the field stays open, which is the intended combined degradation.
  */
 object LlmBridge {
 
-    /** Vazia quando quem clonou o repo não tem o local.properties: falha na hora, campo fica aberto. */
+    /** Empty when whoever cloned the repo has no local.properties: fails instantly, field stays open. */
     fun temPonte(): Boolean = BuildConfig.LLM_URL.isNotBlank()
 
-    // teto de rede do brief: ≤ 20s no total (conectar 4s + ler 16s)
+    // brief's network ceiling: <= 20s total (4s connect + 16s read)
     fun chamar(corpo: String): String {
         if (!temPonte()) throw IOException("bridge not configured (local.properties missing)")
         val con = URL(BuildConfig.LLM_URL).openConnection() as HttpURLConnection

@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- typeViewTextChanged: é como o app aprende observando o usuário corrigir/preencher.
-     typeWindowStateChanged: é o fim de sessão (decisão do Anthuan 09/09: tela mudou = submeteu).
-     flagRequestAccessibilityButton: o gatilho explícito — o serviço SÓ age quando chamado.
-     flagReportViewIds: sem ela viewIdResourceName vem nulo.
-     flagIncludeNotImportantViews: campos dentro de WebView costumam depender dela. -->
+<!-- typeViewTextChanged: how the app learns by observing the user correct/fill fields.
+     typeWindowStateChanged: end of session (Anthuan's decision on 09/09: screen changed = submitted).
+     flagRequestAccessibilityButton: the explicit trigger. The service ONLY acts when invoked.
+     flagReportViewIds: without it, viewIdResourceName comes back null.
+     flagIncludeNotImportantViews: fields inside a WebView often depend on it. -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeViewTextChanged|typeWindowStateChanged"
     android:accessibilityFeedbackType="feedbackGeneric"

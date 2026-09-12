@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- ÚNICO arquivo de estilo do app (com colors.xml), de propósito: decisão do brief 240,
-     sistema visual entregue pelo brief 241. Choice de superfície: SÓLIDA, Material 3
-     baseline dark — a comparação com número que descartou a translúcida está em
+<!-- ONLY style file in the app (along with colors.xml), on purpose: decision from brief 240,
+     visual system delivered by brief 241. Surface choice: SOLID, Material 3
+     baseline dark. The numeric comparison that ruled out the translucent option is in
      /root/shared-memory/produto/preenche-decisao-de-superficie.md. -->
 <resources>
     <style name="Theme.4Form" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/superficie</item>
         <item name="android:colorBackground">@color/superficie</item>
-        <!-- textColor global mantido do 240 (provado no aparelho de build); os papéis
-             abaixo cobrem hint, cursor, linha do EditText, botão e barras do sistema. -->
+        <!-- global textColor kept from 240 (proven on the build device); the roles
+             below cover hint, cursor, EditText underline, button, and system bars. -->
         <item name="android:textColor">@color/texto</item>
         <item name="android:textColorPrimary">@color/texto</item>
         <item name="android:textColorSecondary">@color/texto_secundario</item>
@@ -17,11 +17,11 @@
         <item name="android:colorControlNormal">@color/contorno</item>
         <item name="android:colorControlActivated">@color/primaria</item>
         <item name="android:colorButtonNormal">@color/superficie_recipiente_alto</item>
-        <!-- Fonte: só Geist no tema, de propósito. É a de CORPO na régua do 241
-             (Bevan só em título >= 22sp, Bitcount só em número isolado); pôr Bevan
-             global empastaria toda frase pequena. Os 3 .ttf entram no repo com o
-             LICENSE-fonts-OFL.txt na raiz, que é a obrigação única da OFL 1.1.
-             Bevan e Bitcount ficam disponíveis para o dia do build. -->
+        <!-- Font: only Geist in the theme, on purpose. It's the BODY font in the 241
+             guideline (Bevan only for titles >= 22sp, Bitcount only for standalone numbers);
+             setting Bevan globally would clot every small sentence. The 3 .ttf files ship
+             in the repo with LICENSE-fonts-OFL.txt at the root, the only obligation under
+             OFL 1.1. Bevan and Bitcount remain available for build day. -->
         <item name="android:fontFamily">@font/geist_variable</item>
         <item name="android:statusBarColor">@color/superficie</item>
         <item name="android:navigationBarColor">@color/superficie</item>

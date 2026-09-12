@@ -16,13 +16,13 @@ import com.mygoll.fourform.Ui.rotuloCampo
 import java.io.File
 
 /**
- * A tela que tira o log do aparelho (brief 242, parte C — pedido dele: "traz isso pra gente
- * testar aqui... e você não ficar cego"). Um toque em Compartilhar manda o .json por
- * qualquer app, e o arquivo ⛔ não contém valor escrito nem nada de senha: é rótulo, nível
- * e decisão, nada da pessoa.
+ * The screen that pulls the log off the device (brief 242, part C. His request: "bring
+ * that back to us so we can test it here... and you're not flying blind"). One tap on
+ * Share sends the .json through any app, and the file ⛔ contains no written value and
+ * nothing about passwords: it's label, level, and decision, nothing about the person.
  *
- * 🎓 É a ÚNICA tela deliberadamente crua, e isso é decisão de desenho, não descuido: ela é
- * do desenvolvedor, não do usuário. Enfeitar log é atrapalhar quem lê log.
+ * 🎓 It's the ONLY deliberately raw screen, and that's a design decision, not an oversight:
+ * it's for the developer, not the user. Dressing up a log gets in the way of reading it.
  */
 class DiagnosticsActivity : Activity() {
 

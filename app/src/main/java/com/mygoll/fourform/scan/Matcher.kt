@@ -3,10 +3,10 @@ package com.mygoll.fourform.scan
 import java.text.Normalizer
 
 /**
- * Casa rótulo de campo com chave do perfil por texto, e é burro DE PROPÓSITO:
- * a inteligência é o trabalho do dia do evento; aqui só o esqueleto.
- * A comparação é por PALAVRA inteira, não por substring: "Sobrenome" NÃO casa com a
- * chave "nome" (substring casaria, e preencheria o campo errado).
+ * Matches a field label to a profile key by text, and is dumb ON PURPOSE: the
+ * intelligence is the event day's work; here it's just the skeleton.
+ * The comparison is by WHOLE WORD, not by substring: "Sobrenome" (Surname) does NOT
+ * match the key "nome" (name) (a substring would match, and fill the wrong field).
  */
 object Matcher {
 
@@ -23,12 +23,12 @@ object Matcher {
         val c = normalizar(chave)
         if (r.isEmpty() || c.isEmpty()) return false
         if (r == c) return true
-        // "E-mail" normaliza para "e mail"; sem isto não casaria com a chave "email"
+        // "E-mail" normalizes to "e mail"; without this it wouldn't match the key "email"
         if (r.replace(" ", "") == c.replace(" ", "")) return true
         val palavrasR = r.split(' ').toSet()
         val palavrasC = c.split(' ').toSet()
-        // um lado contido no outro, palavra a palavra: "nome" casa "nome completo",
-        // mas "nome" não casa "sobrenome".
+        // one side contained in the other, word by word: "nome" (name) matches "nome
+        // completo" (full name), but "nome" doesn't match "sobrenome" (surname).
         return palavrasR.containsAll(palavrasC) || palavrasC.containsAll(palavrasR)
     }
 }

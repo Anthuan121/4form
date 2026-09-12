@@ -5,34 +5,35 @@ import com.mygoll.fourform.scan.Field
 import com.mygoll.fourform.scan.Choice
 
 /**
- * O laço da rodada (brief 242): varre a tela → age campo a campo, de cima para baixo →
- * rola → varre de novo → repete até o formulário parar de crescer. A árvore de
- * acessibilidade só contém o que está RENDERIZADO (Chrome e Android não criam nó para o
- * que está fora da viewport), então varrer parado nunca vê um formulário de 3 telas.
+ * The round's loop (brief 242): scan the screen -> act field by field, top to bottom ->
+ * scroll -> scan again -> repeat until the form stops growing. The accessibility tree
+ * only contains what's RENDERED (Chrome and Android don't create a node for what's
+ * outside the viewport), so a single scan never sees a 3-screen form.
  *
- * Puro e síncrono de propósito: o TEMPO (pausa entre campos, espera da rolagem assentar)
- * vive no serviço; aqui só a decisão do próximo passo, provável em teste JVM. As quatro
- * paradas obrigatórias: rolagem sem campo novo, teto de voltas, mudança de pacote, e
- * tela que não rola mais.
+ * Pure and synchronous on purpose: TIME (pause between fields, wait for the scroll to
+ * settle) lives in the service; here it's just the next-step decision, testable in a JVM
+ * test. The four mandatory stops: scroll with no new field, round cap, package change,
+ * and a screen that no longer scrolls.
  */
 class Engine(private val tetoDeVoltas: Int = TETO_DE_VOLTAS) {
 
     companion object {
-        // ponytail: 15 rolagens cobre um formulário de ~5 telas com folga; o teto existe
-        // contra página infinita, não contra formulário grande. Estourou em form real → sobe.
+        // ponytail: 15 scrolls comfortably covers a ~5-screen form; the cap exists
+        // against an infinite page, not against a large form. Blows past it on a real form → raise it.
         const val TETO_DE_VOLTAS = 15
     }
 
     sealed class Passo {
-        /** Decidir e escrever ESTE campo agora; confirmar com campoTratado(). */
+        /** Decide and write THIS field now; confirm with campoTratado(). */
         data class Agir(val campo: Field) : Passo()
 
         /**
-         * Decidir ESTA escolha agora (marcar ou deixar em branco) e seguir. Régua dele,
-         * 12/09: "se vai marcar, marcou e o jogo segue; se não vai marcar, segue pro
-         * próximo campo, não precisa me travar ali". Por isso escolha é um PASSO do laço,
-         * na mesma fila e na mesma ordem visual dos campos de texto, e ⛔ não uma lista de
-         * pendências no fim. O laço percorre item por item até o fim do formulário.
+         * Decide THIS choice now (check it or leave it blank) and move on. His rule,
+         * 09/12: "if it's going to check it, it checks it and the game moves on; if it's
+         * not going to check it, it moves to the next field, no need to block me there".
+         * That's why a choice is a loop STEP, in the same queue and the same visual
+         * order as text fields, and ⛔ not a pending-items list at the end. The loop goes
+         * through item by item until the end of the form.
          */
         data class Escolher(val escolha: Choice) : Passo()
 
@@ -40,7 +41,7 @@ class Engine(private val tetoDeVoltas: Int = TETO_DE_VOLTAS) {
         data class Fim(val motivo: String) : Passo()
     }
 
-    /** false = a rodada inteira não viu campo nenhum; o painel de resultado NÃO aparece. */
+    /** false = the whole round saw no field at all; the result panel does NOT appear. */
     var achouAlgumCampo = false
         private set
 
@@ -54,11 +55,11 @@ class Engine(private val tetoDeVoltas: Int = TETO_DE_VOLTAS) {
     private val chavesVistas = mutableSetOf<String>()
     private val rotulosVistos = mutableSetOf<String>()
 
-    // Fila ÚNICA de passos, ordenada pelo topo na tela: texto e escolha convivem nela na
-    // ordem em que a pessoa vê. Antes eram duas listas (campos no laço, escolhas num painel
-    // no fim) e era isso que produzia o travamento — o app preenchia 3 campos, chegava no
-    // checkbox e parava pra perguntar. Régua dele, 12/09: "marcou, o jogo segue; não
-    // marcou, segue pro próximo campo".
+    // A SINGLE queue of steps, ordered by top-of-screen position: text and choice live in
+    // it together, in the order the person sees them. It used to be two lists (fields in
+    // the loop, choices in a panel at the end), and that's what produced the freeze. The
+    // app would fill 3 fields, reach the checkbox, and stop to ask. His rule, 09/12:
+    // "checked it, the game moves on; didn't check it, moves to the next field".
     private val fila = ArrayDeque<Passo>()
 
     private fun chaveDe(p: Passo): String? = when (p) {
@@ -68,26 +69,27 @@ class Engine(private val tetoDeVoltas: Int = TETO_DE_VOLTAS) {
     }
 
     /**
-     * Alimenta o motor com o que uma varredura viu. Devolve quantos campos NOVOS entraram.
-     * Da 2ª varredura em diante cada chamada conta como uma volta de rolagem concluída,
-     * e voltar sem nada novo é a parada natural do laço.
+     * Feeds the engine with what one scan saw. Returns how many NEW fields came in. From
+     * the 2nd scan onward, each call counts as one completed scroll round, and coming
+     * back with nothing new is the loop's natural stopping point.
      */
     fun receberVarredura(
         pacote: String?,
         campos: List<Field>,
-        // Quantos campos de ESCOLHA inéditos esta varredura trouxe. Entra na conta da
-        // parada porque a régua antiga media "campo de TEXTO novo", e isso matava o laço
-        // cedo: medido em 12/09 num formulário de vaga real, rolar trouxe 7 radios e zero
-        // caixas de texto, o laço leu isso como "cheguei ao fim" e parou na 1ª volta.
-        // Rolagem que revela QUALQUER campo respondível é rolagem que valeu a pena.
+        // How many brand-new CHOICE fields this scan brought in. Counts toward the
+        // stopping decision because the old rule measured "new TEXT field", and that
+        // killed the loop early: measured on 09/12 on a real job form, scrolling brought
+        // in 7 radios and zero text boxes, and the loop read that as "reached the end"
+        // and stopped on round 1. A scroll that reveals ANY answerable field was worth it.
         escolhasNovas: List<Choice> = emptyList(),
-        // Impressão digital do que ESTA varredura viu na tela. A régua de parada passou a
-        // ser a dele (12/09) e é a concepção certa: "o formulário só acaba quando a
-        // rolagem chega ao fim da tela". Rolar e não achar campo novo ⛔ não é fim: um
-        // formulário real tem blocos gigantes no meio (o upload do currículo, um texto de
-        // consentimento) e depois volta a ter campo. Quem para no primeiro vazio perde a
-        // metade de baixo. Então o único fim legítimo é a tela não se mover mais, e é
-        // isso que a assinatura mede: igual duas vezes = a rolagem não moveu nada.
+        // Fingerprint of what THIS scan saw on screen. The stopping rule became his
+        // (09/12), and it's the right concept: "the form only ends when scrolling
+        // reaches the bottom of the screen". Scrolling and finding no new field ⛔ is not
+        // the end: a real form has huge blocks in the middle (the resume upload, a
+        // consent text) and then has fields again. Stopping at the first empty stretch
+        // loses the bottom half. So the only legitimate end is the screen not moving
+        // anymore, and that's what the fingerprint measures: same twice = the scroll
+        // moved nothing.
         assinatura: String = "",
     ): Int {
         if (!houveVarredura) {
@@ -106,8 +108,8 @@ class Engine(private val tetoDeVoltas: Int = TETO_DE_VOLTAS) {
             chavesVistas.add(c.chave)
             Labeler.rotulo(c)?.let { rotulosVistos.add(it.first) }
         }
-        // ordem VISUAL de cima para baixo: é o ritmo que a pessoa acompanha na tela, e é o
-        // que faz texto e escolha se intercalarem como no formulário de verdade.
+        // VISUAL top-to-bottom order: it's the pace the person follows on screen, and
+        // it's what makes text and choice interleave like in the real form.
         val passos = novos.map { it.caixa.topo to (Passo.Agir(it) as Passo) } +
             escolhasNovas.map { it.caixa.topo to (Passo.Escolher(it) as Passo) }
         fila.addAll(passos.sortedBy { it.first }.map { it.second })
@@ -120,15 +122,16 @@ class Engine(private val tetoDeVoltas: Int = TETO_DE_VOLTAS) {
 
     private var assinaturaAnterior: String? = null
 
-    /** true = a última rolagem pediu e a árvore voltou idêntica: aquele meio não move a tela. */
+    /** true = the last scroll was requested and the tree came back identical: that method doesn't move the screen. */
     var telaNaoSeMoveu = false
         private set
 
     /**
-     * Dá mais uma chance ao laço com OUTRO meio de rolagem. Medido em 12/09 no Edge:
-     * ACTION_SCROLL_FORWARD numa WebView retorna sucesso e ⛔ não move nada (207 nós antes
-     * e 207 depois). Sem esta porta, "a ação da árvore não funciona neste app" e "o
-     * formulário acabou" viram a mesma coisa, e o laço morre no meio do formulário.
+     * Gives the loop one more chance with ANOTHER scroll method. Measured on 09/12 on
+     * Edge: ACTION_SCROLL_FORWARD on a WebView returns success and ⛔ moves nothing (207
+     * nodes before, 207 after). Without this escape hatch, "the tree's action doesn't
+     * work in this app" and "the form ended" become the same thing, and the loop dies
+     * midway through the form.
      */
     fun tentarOutroMeioDeRolagem() {
         telaNaoSeMoveu = false
@@ -136,11 +139,12 @@ class Engine(private val tetoDeVoltas: Int = TETO_DE_VOLTAS) {
     }
 
     /**
-     * O mesmo campo não pode ser preenchido duas vezes quando reaparece depois da rolagem.
-     * 1ª defesa: a chave estável. 2ª defesa: a chave degrada para a CAIXA quando o campo
-     * não tem viewId/hint/descrição, e a caixa muda a cada rolagem — então um "novo" campo
-     * com rótulo já visto E texto dentro é quase certamente um já tratado que voltou com
-     * outra caixa. Descartar não perde nada: com texto ele viraria "não sobrescrevo" mesmo.
+     * The same field can't be filled twice when it reappears after scrolling. 1st
+     * defense: the stable key. 2nd defense: the key falls back to the BOUNDING BOX when
+     * the field has no viewId/hint/description, and the box changes on every scroll, so
+     * a "new" field with an already-seen label AND text inside is almost certainly an
+     * already-handled one that came back with a different box. Discarding it loses
+     * nothing: with text it would become "I don't overwrite" anyway.
      */
     private fun jaVisto(c: Field): Boolean {
         if (c.chave in chavesVistas) return true
@@ -154,9 +158,10 @@ class Engine(private val tetoDeVoltas: Int = TETO_DE_VOLTAS) {
     fun proximoPasso(): Passo = when {
         mudouDePacote -> Passo.Fim("the screen changed to another app mid-round")
         fila.isNotEmpty() -> fila.first()
-        // tela de ENTRADA sem nada respondível não é formulário: para na hora, em vez de
-        // rolar 15 vezes atrás de algo que não existe. Depois da 1ª volta a régua inverte,
-        // porque aí já se sabe que É um formulário e o vazio pode ser só um bloco do meio.
+        // an ENTRY screen with nothing answerable isn't a form: stop right away, instead
+        // of scrolling 15 times chasing something that doesn't exist. After round 1 the
+        // rule flips, because by then it's known to BE a form and an empty stretch can
+        // just be a block in the middle.
         !achouAlgumCampo && voltasDeRolagem == 0 -> Passo.Fim("I didn't find an answerable field on this screen")
         telaNaoSeMoveu && !achouAlgumCampo -> Passo.Fim("I scrolled through the whole screen and didn't find an answerable field")
         telaNaoSeMoveu -> Passo.Fim("scrolled all the way: the screen doesn't move anymore")
@@ -166,16 +171,17 @@ class Engine(private val tetoDeVoltas: Int = TETO_DE_VOLTAS) {
     }
 
     /**
-     * O serviço confirma que tratou o item da frente — preencheu, marcou, ou decidiu não
-     * mexer. Vale para campo e para escolha: tratar é sair da fila, e "não marquei" também
-     * é ter tratado. É essa indiferença que garante que nada trava o laço.
+     * The service confirms it handled the item at the front, whether it filled it,
+     * checked it, or decided not to touch it. Applies to both fields and choices:
+     * handling means leaving the queue, and "didn't check it" also counts as handled.
+     * This indifference is what guarantees nothing freezes the loop.
      */
     fun campoTratado(chave: String) {
         if (chaveDe(fila.firstOrNull() ?: return) == chave) fila.removeFirst()
         else fila.removeAll { chaveDe(it) == chave }
     }
 
-    /** ACTION_SCROLL_FORWARD recusado ou nenhum nó rolável: a rolagem acabou para sempre. */
+    /** ACTION_SCROLL_FORWARD refused or no scrollable node: scrolling is over for good. */
     fun rolagemFalhou() {
         semRolagem = true
     }

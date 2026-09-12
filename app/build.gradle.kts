@@ -1,7 +1,7 @@
 import java.util.Properties
 
 plugins {
-    id("com.android.application") // Kotlin embutido desde o AGP 9; sem plugin Kotlin à parte
+    id("com.android.application") // Kotlin bundled since AGP 9; no separate Kotlin plugin
 }
 
 android {
@@ -15,10 +15,10 @@ android {
         versionCode = 10
         versionName = "1.0-4form"
 
-        // A URL da ponte (com o segredo do caminho) vem do local.properties, que NUNCA e
-        // versionado. O repo pode ir publico mostrando a arquitetura inteira sem entregar
-        // o segredo; quem clonar compila com string vazia e o app degrada para "sem IA".
-        // 🎓 E o padrao da industria: segredo em arquivo local + BuildConfig, nunca em fonte.
+        // The bridge URL (with the path secret) comes from local.properties, which is NEVER
+        // versioned. The repo can go public showing the whole architecture without giving
+        // away the secret; whoever clones it builds with an empty string and the app degrades to "no AI".
+        // 🎓 This is industry standard: secret in a local file + BuildConfig, never in source.
         val propsLocais = Properties().apply {
             val f = rootProject.file("local.properties")
             if (f.exists()) f.inputStream().use { load(it) }
@@ -30,7 +30,7 @@ android {
         )
     }
 
-    // BuildConfig desligado por padrão no AGP 9; a tela principal mostra a versão por ele.
+    // BuildConfig is off by default in AGP 9; the main screen shows the version through it.
     buildFeatures {
         buildConfig = true
     }
@@ -42,6 +42,6 @@ android {
 }
 
 dependencies {
-    // Zero dependência de runtime de propósito: Activity pura + tema de plataforma.
+    // Zero purpose-built runtime dependency: plain Activity + platform theme.
     testImplementation("junit:junit:4.13.2")
 }

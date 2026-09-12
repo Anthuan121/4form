@@ -1,9 +1,9 @@
 package com.mygoll.fourform.scan
 
 /**
- * Serialização caseira e mínima. TSV com escape para o armazenamento interno
- * (aprendidos, recibo) e JSON só de ESCRITA para o relatório. Sem biblioteca de
- * propósito: o app é 100% local e nada aqui é parseado por terceiros.
+ * Homegrown, minimal serialization. Escaped TSV for internal storage (learned entries,
+ * receipt) and WRITE-only JSON for the report. No library on purpose: the app is 100%
+ * local and nothing here is parsed by a third party.
  */
 object Tsv {
     fun esc(s: String): String = s
@@ -53,6 +53,6 @@ object Json {
     }
 }
 
-// O antigo objeto Relatorio (240) morava aqui e gravava VALORES escritos. Saiu no 242:
-// o diagnóstico agora é exportável pelo botão de compartilhar, e valor não sai do
-// aparelho — ver nucleo/Diagnostics.kt.
+// The old Relatorio object (240) used to live here and wrote out entered VALUES. It left
+// in 242: the diagnostic is now exportable via the share button, and value never leaves
+// the device. See nucleo/Diagnostics.kt.

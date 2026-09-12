@@ -26,11 +26,12 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * O serviço SÓ age quando chamado pelo botão de acessibilidade (gatilho explícito,
- * decisão do Anthuan: nada de bolha, nada de agir sozinho). Desde o 242 o gatilho abre
- * um LAÇO: varre a tela, preenche o que sabe um a um (pausa visível entre campos, pedido
- * dele: "eu vendo ele tendo ação é melhor do que chegar tudo preenchido já"), rola,
- * varre de novo, até o Engine mandar parar. No fim, o painel de resultado NA TELA.
+ * The service ONLY acts when invoked via the accessibility button (explicit trigger,
+ * Anthuan's decision: no bubble, no acting on its own). Since 242 the trigger opens a
+ * LOOP: scans the screen, fills what it knows one at a time (visible pause between
+ * fields, his request: "seeing it take action is better than everything showing up
+ * already filled"), scrolls, scans again, until the Engine says stop. At the end, the
+ * result panel shows ON SCREEN.
  */
 class FourFormService : AccessibilityService() {
 
@@ -38,9 +39,9 @@ class FourFormService : AccessibilityService() {
         @Volatile
         var ativo = false
 
-        // ponytail: 12s cobre a espera pós-rolagem mais a chamada de IA mais folga. Se um
-        // formulário real estourar isso com o laço SAUDÁVEL, sobe o número; o vigia existe
-        // contra callback que não volta, não contra formulário grande.
+        // ponytail: 12s covers the post-scroll wait plus the AI call plus slack. If a
+        // real form blows past this with a HEALTHY loop, raise the number; the watchdog
+        // exists against a callback that never returns, not against a large form.
         const val TETO_SEM_PASSO_MS = 12_000L
     }
 
@@ -51,17 +52,18 @@ class FourFormService : AccessibilityService() {
     private var painel: Panel? = null
 
     /**
-     * A bolha é a interface ATIVA do agente (desenho dele, 12/09). O painel deixou de abrir
-     * sozinho no fim da rodada: agora quem abre é o toque NA BOLHA. Régua dele no mesmo dia:
-     * "se ele não vai marcar, segue pro próximo campo, não precisa me travar ali". Panel
-     * que aparece sem ser chamado é exatamente o travamento que ele descreveu.
+     * The bubble is the agent's ACTIVE interface (his design, 09/12). The panel no longer
+     * opens on its own at the end of a round: now it opens on a tap ON THE BUBBLE. His
+     * rule the same day: "if it's not going to check it, move on to the next field, no
+     * need to block me there". A Panel that shows up uninvited is exactly the blocking
+     * behavior he described.
      */
     private var bolha: Bubble? = null
 
-    /** Monta o painel desta sessão sob demanda (o toque na bolha). */
+    /** Builds this session's panel on demand (the tap on the bubble). */
     private var abrirPainel: (() -> Unit)? = null
 
-    // estado da rodada em curso, acumulado varredura a varredura
+    // state of the round in progress, accumulated scan by scan
     private val nosPorChave = mutableMapOf<String, AccessibilityNodeInfo>()
     private var rolavel: AccessibilityNodeInfo? = null
     private var totalNos = 0
@@ -69,27 +71,28 @@ class FourFormService : AccessibilityService() {
     private var motivoDaParada = ""
     private var voltasDaRodada = 0
 
-    // uma linha por varredura: qual contêiner rolável foi escolhido e com que espera.
-    // É o que faz o teste no aparelho devolver CAUSA em vez de só "parou cedo".
+    // one line per scan: which scrollable container was chosen and what wait was used.
+    // This is what makes the on-device test return a CAUSE instead of just "stopped early".
     private val laco = mutableListOf<String>()
 
-    // censo dos campos de escolha da rodada inteira. Map por chave visual para não contar
-    // duas vezes o mesmo checkbox quando ele reaparece depois da rolagem — mesma razão do
-    // dedupe do Engine, só que aqui a chave é viewId+rótulo porque não há ação nem fila.
+    // census of choice fields for the whole round. Map keyed by visual key so the same
+    // checkbox isn't counted twice when it reappears after scrolling. Same reason as the
+    // Engine's dedupe, except here the key is viewId+label because there's no action or queue.
     private val escolhas = linkedMapOf<String, Choice>()
     private val nosEscolha = mutableMapOf<String, AccessibilityNodeInfo>()
 
-    // placar do ACTION_CLICK. Existe porque "não marcou" tem duas causas muito diferentes:
-    // a árvore recusou a ação, ou o nó já tinha saído da tela. Sem o placar no diagnóstico,
-    // o teste em aparelho volta como "não funcionou" e não dá pra agir em cima disso.
+    // ACTION_CLICK tally. Exists because "didn't check" has two very different causes:
+    // the tree refused the action, or the node had already left the screen. Without the
+    // tally in the diagnostic, the on-device test comes back as "didn't work" and there's
+    // nothing to act on.
     private var cliquesFeitos = 0
     private var cliquesFalhos = 0
 
-    // qual meio de rolagem está em uso nesta rodada (escada: ação da árvore, depois gesto)
+    // which scroll method is in use this round (ladder: tree action, then gesture)
     private var usandoGesto = false
 
-    // brief 245: sugestões da IA por chave de campo (esperando o toque no painel) e o
-    // rastro por campo para o diagnóstico (desfecho + confiança + latência, sem conteúdo)
+    // brief 245: AI suggestions per field key (waiting for the panel tap) and the
+    // per-field trail for the diagnostic (outcome + confidence + latency, no content)
     private val sugestoesLlm = mutableMapOf<String, Llm.Sugestao>()
     private val llmDiag = mutableMapOf<String, Llm.LlmDiagnostico>()
 
@@ -124,37 +127,38 @@ class FourFormService : AccessibilityService() {
         }
     }
 
-    /** O gatilho. Abre a rodada: sessão nova, motor novo, primeira varredura, e o laço anda. */
+    /** The trigger. Opens the round: new session, new engine, first scan, and the loop starts. */
     private fun preencher() {
         abortarRodadaSeAtiva("you triggered it again mid-round")
         painel?.fechar()
-        fecharSessao() // gatilho novo com sessão velha aberta: salva o que a velha aprendeu
+        fecharSessao() // new trigger with an old session still open: saves what the old one learned
         val raiz = rootInActiveWindow ?: run {
             Notices.texto(this, "No active window to read.")
             return
         }
         abrirPainel = null
-        // a bolha nasce junto com a rodada e já conta que está lendo a tela
+        // the bubble is born together with the round and already shows it's reading the screen
         bolha?.fechar()
         bolha = Bubble(
             this,
             aoTocar = { abrirPainel?.invoke() },
-            // arrastar para o lixo encerra a RODADA, ⛔ não desliga o serviço. Decisão dele
-            // em 12/09, e a distinção é de confiança: um app que lê a tela não pode dar a
-            // sensação de "desliguei" quando continua ligado. Desligar segue nas configurações.
+            // dragging to the trash ends the ROUND, ⛔ it does not turn off the service.
+            // His decision on 09/12, and the distinction is about trust: an app that
+            // reads the screen can't give the feeling of "I turned it off" when it's
+            // still on. Turning it off stays in settings.
             aoDescartar = {
                 painel?.fechar()
                 abortarRodadaSeAtiva("you dismissed the bubble")
             },
         ).also { it.mostrar(); it.estado(Bubble.Estado.INTERPRETANDO) }
         pacoteDaSessao = raiz.packageName?.toString()
-        // atalho aprendido: o nível que mais resolveu rótulo NESTE app; se falhar num
-        // campo, a escada roda inteira (atalho, nunca trava)
+        // learned shortcut: the level that resolved the label most often IN THIS app; if
+        // it fails on a field, the whole ladder still runs (a shortcut, never a hard stop)
         val preferido = Store.carregarCaminho(this).nivelPreferido(pacoteDaSessao ?: "")
         val s = Session(Store.perfil(this), nivelPreferido = preferido)
         sessao = s
-        // o toque na bolha funciona DESDE JÁ, não só no fim. No 2.0 isto só era ligado em
-        // encerrarRodada, então laço travado = toque morto, que foi o que ele mediu.
+        // the tap on the bubble works RIGHT AWAY, not just at the end. In 2.0 this was
+        // only wired up in encerrarRodada, so a stuck loop = a dead tap, which is what he measured.
         abrirPainel = { montarPainel(s) }
         motor = Engine()
         nosPorChave.clear()
@@ -174,16 +178,17 @@ class FourFormService : AccessibilityService() {
     }
 
     /**
-     * TENTAR DE NOVO sem começar do zero (pedido dele, 12/09): "não precisa começar do zero,
-     * pra ele tentar novamente nos campos que ele não conseguiu".
+     * TRY AGAIN without starting from zero (his request, 09/12): "no need to start from
+     * zero, just have it try again on the fields it couldn't get".
      *
-     * 🎓 O truque é não precisar de lista de pendências: a MESMA sessão continua (com tudo
-     * que ela aprendeu e registrou), e só o MOTOR é novo. Field já preenchido tem texto, e a
-     * régua "já tem texto: não sobrescrevo o que não fui eu que pus" o descarta sozinho. Ou
-     * seja, o retomar cai naturalmente no que faltou, sem código de exceção.
+     * 🎓 The trick is not needing a pending-items list: the SAME session continues (with
+     * everything it learned and recorded), and only the ENGINE is new. A field that's
+     * already filled has text, and the rule "already has text: I don't overwrite what I
+     * didn't put there" discards it on its own. In other words, resuming naturally lands
+     * on what's left, with no special-case code.
      */
     private fun retomar() {
-        val s = sessao ?: return preencher() // sessão morta: aí é rodada nova mesmo
+        val s = sessao ?: return preencher() // dead session: then it really is a new round
         painel?.fechar()
         handler.removeCallbacksAndMessages(null)
         val raiz = rootInActiveWindow ?: run {
@@ -221,16 +226,17 @@ class FourFormService : AccessibilityService() {
         )
     }
 
-    /** Só forma e tamanho do contêiner: nenhum texto de campo entra aqui (o arquivo sai do aparelho). */
+    /** Only the container's shape and size: no field text goes in here (this file leaves the device). */
     private fun descreverRolavel(
         no: AccessibilityNodeInfo?,
         campos: Int,
         nos: Int,
         escolhasNovas: Int,
     ): String {
-        // o total de NÓS por varredura é o que distingue "rolei e a tela era só de radios"
-        // de "pedi rolagem, ela disse ok e nada se moveu". Sem esse número os dois casos
-        // produzem o mesmo log e a próxima depuração vira adivinhação.
+        // the total NODE count per scan is what distinguishes "I scrolled and the screen
+        // was just radios" from "I asked to scroll, it said ok, and nothing moved".
+        // Without this number both cases produce the same log and the next debugging
+        // session turns into guesswork.
         val sufixo = "· $campos fields · +$escolhasNovas choices · $nos nodes · wait ${Pace.POS_ROLAGEM_MS}ms"
         if (no == null) return "scan ${laco.size}: NO scrollable container visible $sufixo"
         val r = Rect().also { no.getBoundsInScreen(it) }
@@ -239,14 +245,15 @@ class FourFormService : AccessibilityService() {
     }
 
     /**
-     * Vigia do laço. Cada passo reagenda este alarme; se ele dispara, é porque o laço parou
-     * de andar sem encerrar a rodada, e a bolha ficaria girando para sempre.
+     * The loop's watchdog. Every step reschedules this alarm; if it fires, it's because
+     * the loop stopped moving without ending the round, and the bubble would spin forever.
      *
-     * 🎓 Por que um vigia e não "consertar o travamento": o laço depende de callbacks do
-     * SISTEMA (o gesto de rolagem avisa quando terminou). Callback que não volta é uma
-     * classe inteira de falha que não se elimina por código, então o certo é ter um prazo e
-     * contar a verdade quando ele estoura. Medido por ele em 12/09: "está girando girando e
-     * nada aconteceu" era o laço mudo, e nada na tela dizia isso.
+     * 🎓 Why a watchdog instead of "fixing the freeze": the loop depends on SYSTEM
+     * callbacks (the scroll gesture reports when it's done). A callback that never
+     * returns is a whole class of failure that can't be eliminated by code, so the right
+     * move is to set a deadline and tell the truth when it's blown. Measured by him on
+     * 09/12: "it's spinning and spinning and nothing happened" was the silent loop, and
+     * nothing on screen said so.
      */
     private val vigiaDoLaco = Runnable {
         if (motor == null) return@Runnable
@@ -259,7 +266,7 @@ class FourFormService : AccessibilityService() {
         if (motor != null) handler.postDelayed(vigiaDoLaco, TETO_SEM_PASSO_MS)
     }
 
-    /** Um passo do laço por vez; a pausa entre campos é o ritmo visível (Pace.ENTRE_CAMPOS_MS). */
+    /** One loop step at a time; the pause between fields is the visible pace (Pace.ENTRE_CAMPOS_MS). */
     private fun avancar() {
         renovarVigia()
         val m = motor ?: return
@@ -282,9 +289,9 @@ class FourFormService : AccessibilityService() {
                 bolha?.estado(Bubble.Estado.PREENCHENDO)
                 val e = passo.escolha
                 if (s.decidirEscolha(e) is Session.Decisao.Preencher) {
-                    // ACTION_CLICK é a ação da própria árvore, não gesto por coordenada: o
-                    // 247 provou que checkbox e radio a expõem direto, e gesto por pixel
-                    // quebraria em tela de outro tamanho.
+                    // ACTION_CLICK is the tree's own action, not a coordinate gesture: 247
+                    // proved that checkbox and radio expose it directly, and a pixel
+                    // gesture would break on a screen of a different size.
                     val ok = nosEscolha[e.chave]
                         ?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
                     if (ok) {
@@ -294,20 +301,21 @@ class FourFormService : AccessibilityService() {
                         cliquesFalhos++
                     }
                 }
-                // ⛔ Sem else: não marcar NÃO interrompe e não pergunta nada. O laço segue.
+                // ⛔ No else: failing to check it does NOT interrupt and does not ask anything. The loop continues.
                 m.campoTratado(e.chave)
                 handler.postDelayed(::avancar, Pace.ENTRE_CAMPOS_MS)
             }
             Engine.Passo.Rolar -> {
-                // rolar é ler a tela de novo, não agir: volta ao arco girando
+                // scrolling means reading the screen again, not acting: back to the spinning arc
                 bolha?.estado(Bubble.Estado.INTERPRETANDO)
                 rolar(m)
             }
             is Engine.Passo.Fim -> {
-                // "a tela não se move mais" pode ser fim do formulário OU o meio de rolagem
-                // não servir para este app. Antes de encerrar, troca o meio uma vez: pedir
-                // à árvore falha em WebView (medido), e o gesto de arrastar funciona onde a
-                // ação não funciona. Só encerra quando os DOIS meios não moveram nada.
+                // "the screen doesn't move anymore" can mean the end of the form OR that
+                // the scroll method doesn't work for this app. Before ending, switch
+                // methods once: asking the tree fails in WebView (measured), and the drag
+                // gesture works where the action doesn't. Only ends when NEITHER method
+                // moved anything.
                 if (m.telaNaoSeMoveu && !usandoGesto) {
                     usandoGesto = true
                     m.tentarOutroMeioDeRolagem()
@@ -321,18 +329,19 @@ class FourFormService : AccessibilityService() {
     }
 
     /**
-     * Rolar em dois meios, nesta ordem:
-     * 1. ACTION_SCROLL_FORWARD, a ação da própria árvore. É o meio limpo e funciona em app
-     *    nativo. Em WebView ele retorna sucesso e não move nada (medido no Edge, 12/09).
-     * 2. Gesto de arrastar. Funciona onde a ação não funciona, mas depende de coordenada,
-     *    então é calculado dos bounds REAIS do contêiner e nunca de número fixo: assim
-     *    sobrevive a tela de outro tamanho, que era a objeção original ao gesto.
+     * Scroll via two methods, in this order:
+     * 1. ACTION_SCROLL_FORWARD, the tree's own action. It's the clean method and works in
+     *    native apps. In WebView it returns success and moves nothing (measured on Edge, 09/12).
+     * 2. Drag gesture. Works where the action doesn't, but depends on coordinates, so
+     *    it's calculated from the container's REAL bounds and never a fixed number: that
+     *    way it survives a screen of a different size, which was the original objection to
+     *    the gesture.
      */
     private fun rolar(m: Engine) {
         if (!usandoGesto) {
             val pediu = rolavel?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) == true
             if (!pediu) {
-                // recusou na cara: nem vale esperar, já troca de meio
+                // flat-out refused: not even worth waiting, switch methods right away
                 if (usandoGesto) { m.rolagemFalhou(); avancar(); return }
                 usandoGesto = true
                 laco.add("the tree refused ACTION_SCROLL_FORWARD: switching to gesture")
@@ -344,9 +353,9 @@ class FourFormService : AccessibilityService() {
         }
         val alvo = rolavel ?: run { m.rolagemFalhou(); avancar(); return }
         val r = Rect().also { alvo.getBoundsInScreen(it) }
-        // arrasta do terço de baixo para o terço de cima, dentro do próprio contêiner:
-        // uma "tela" de cada vez, com sobreposição, para nenhum campo passar batido entre
-        // duas varreduras. Margem de 10% nas bordas evita o gesto virar puxar-para-atualizar.
+        // drags from the bottom third to the top third, inside the container itself: one
+        // "screen" at a time, with overlap, so no field slips through unseen between two
+        // scans. A 10% edge margin keeps the gesture from turning into pull-to-refresh.
         val x = (r.left + r.right) / 2f
         val de = r.bottom - r.height() * 0.15f
         val ate = r.top + r.height() * 0.25f
@@ -357,15 +366,17 @@ class FourFormService : AccessibilityService() {
         val gesto = GestureDescription.Builder()
             .addStroke(GestureDescription.StrokeDescription(caminho, 0L, Pace.GESTO_MS))
             .build()
-        // MEDIDO NOS DUMPS DE 12/09 (6 rodadas seguidas, Edge/WebView): dispatchGesture
-        // devolve true, o gesto acontece, e NEM onCompleted NEM onCancelled disparam. O laço
-        // ficava pendurado esperando um callback que não vem e só o vigia o soltava, 12s
-        // depois. Era isto que fazia "ele não rolou até o final".
+        // MEASURED IN THE 09/12 DUMPS (6 rounds in a row, Edge/WebView): dispatchGesture
+        // returns true, the gesture happens, and NEITHER onCompleted NOR onCancelled
+        // fires. The loop would hang waiting for a callback that never comes, and only
+        // the watchdog would release it, 12s later. This was what made it look like "it
+        // didn't scroll to the end".
         //
-        // 🎓 A correção não é caçar o motivo do callback sumir (é do sistema, fora do nosso
-        // alcance): é parar de depender de UMA fonte de verdade. Despacha o gesto E agenda a
-        // continuação por tempo; o primeiro que chegar assume e o outro vira no-op. Mesmo
-        // princípio do vigia, só que local e em 1,5s em vez de 12.
+        // 🎓 The fix isn't hunting down why the callback disappears (it's the system's
+        // doing, out of our reach): it's not depending on a SINGLE source of truth
+        // anymore. Dispatch the gesture AND schedule the continuation by time; whichever
+        // arrives first wins, and the other becomes a no-op. Same principle as the
+        // watchdog, just local and at 1.5s instead of 12.
         var jaSeguiu = false
         val seguir = {
             if (!jaSeguiu && motor === m) {
@@ -389,7 +400,7 @@ class FourFormService : AccessibilityService() {
             },
             handler,
         )
-        // a rede: duração do gesto + a espera da tela assentar + folga
+        // the safety net: gesture duration + wait for the screen to settle + slack
         handler.postDelayed({ seguir() }, Pace.GESTO_MS + Pace.POS_ROLAGEM_MS + 400L)
         if (!despachou) {
             m.rolagemFalhou()
@@ -411,9 +422,9 @@ class FourFormService : AccessibilityService() {
     }
 
     /**
-     * Fim do laço: grava o diagnóstico, alimenta o aprendizado de caminho, mostra o
-     * resultado NA TELA (painel; a notificação vira só registro de histórico) — mas
-     * painel só quando a rodada viu campo: painel de nada é ruído.
+     * End of the loop: writes the diagnostic, feeds the path learning, shows the result
+     * ON SCREEN (panel; the notification becomes just a history record). But the panel
+     * only shows when the round saw a field: a panel about nothing is noise.
      */
     private fun encerrarRodada(motivo: String) {
         handler.removeCallbacks(vigiaDoLaco)
@@ -432,11 +443,12 @@ class FourFormService : AccessibilityService() {
 
         val abertos = s.abertosAgora()
         val escritos = registros.count { it.acao == "preencheu" }
-        Notices.resumo(this, escritos, abertos) // registro silencioso; o canal principal é a tela
+        Notices.resumo(this, escritos, abertos) // silent record; the main channel is the screen
 
         if (!m.achouAlgumCampo) {
-            // o censo entra AQUI também: "não achei campo de texto, mas vi 12 de escolha"
-            // é diagnóstico; "não achei nada" mandava consertar a varredura à toa.
+            // the census comes in HERE too: "found no text field, but saw 12 choice
+            // fields" is a diagnostic; "found nothing" used to send you off to fix the
+            // scan for nothing.
             val cegos = escolhas.size
             Notices.texto(
                 this,
@@ -447,12 +459,12 @@ class FourFormService : AccessibilityService() {
             bolha = null
             return
         }
-        // A bolha passa a CONTAR o que ficou aberto, e fica quieta. ⛔ O painel NÃO abre
-        // sozinho: quem abre é o toque nela. Separar "estou trabalhando" de "preciso de
-        // você" é o ponto inteiro do desenho de 12/09.
-        // ERRO ⛔ não é o mesmo que "sobrou campo": parada por falha do laço é problema DO
-        // APP, e a bolha precisa dizer isso em vermelho. Pedido dele em 12/09: "se houver
-        // qualquer erro ou qualquer tipo de informação, ele deveria me notificar na bolinha".
+        // The bubble now COUNTS what's left open, and stays quiet. ⛔ The panel does NOT
+        // open on its own: only a tap on it opens it. Separating "I'm working" from "I
+        // need you" is the whole point of the 09/12 design.
+        // ERROR ⛔ is not the same as "field left over": stopping due to a loop failure is
+        // an APP problem, and the bubble needs to say so in red. His request on 09/12:
+        // "if there's any error or any kind of information, it should notify me on the bubble".
         val falhou = motivo.contains("stopped responding") || motivo.contains("doesn't move")
         bolha?.estado(
             when {
@@ -466,26 +478,27 @@ class FourFormService : AccessibilityService() {
     }
 
     /**
-     * Monta o painel desta sessão. Vive FORA do fim da rodada de propósito: o toque na
-     * bolha precisa funcionar a QUALQUER momento, inclusive com o laço ainda andando e
-     * inclusive com o laço TRAVADO. Foi exatamente o que faltou no 2.0, medido por ele no
-     * aparelho em 12/09: "a bolinha está girando girando e nada aconteceu, e a minha
-     * intenção era quando eu clicasse na bolinha ver o que está acontecendo".
+     * Builds this session's panel. Lives OUTSIDE the end of the round on purpose: the tap
+     * on the bubble needs to work at ANY moment, including while the loop is still
+     * running and even while the loop is STUCK. This was exactly what was missing in 2.0,
+     * measured by him on the device on 09/12: "the bubble is spinning and spinning and
+     * nothing happened, and my intention was that when I tapped the bubble I'd see what's happening".
      */
     private fun montarPainel(s: Session) {
-        if (painel != null) return // já aberto: o toque não empilha janela
+        if (painel != null) return // already open: the tap doesn't stack a new window
         painel = Panel(
             this,
             registros = { s.registros() },
             aoDesfazer = { chave ->
-                // limpa o campo de verdade e só então marca desfeito
+                // clears the field for real and only then marks it undone
                 escrever(nosPorChave[chave], "") && s.desfazer(chave)
             },
             aoEscrever = { chave, valor ->
                 val ok = escrever(nosPorChave[chave], valor) && s.escreverAgora(chave, valor)
-                // se havia sugestão da IA para este campo, o que a pessoa escreveu diz o
-                // desfecho: igual à sugestão = aceita; diferente = editada (a correção
-                // já entrou nos aprendidos pelo escreverAgora, e vence a IA na próxima)
+                // if there was an AI suggestion for this field, what the person wrote
+                // decides the outcome: same as the suggestion = accepted; different =
+                // edited (the correction already went into learned entries via
+                // escreverAgora, and the AI is overridden next time)
                 if (ok) sugestoesLlm.remove(chave)?.let { sug ->
                     fecharEpisodioLlm(s, chave, if (valor == sug.resposta) "aceita" else "editada")
                 }
@@ -510,17 +523,18 @@ class FourFormService : AccessibilityService() {
             escolhasVistas = { escolhas.size },
             escolhasLista = { escolhas.values.toList() },
             aoMarcar = { chave ->
-                // ACTION_CLICK é a ação da própria árvore, não gesto por coordenada: o
-                // 247 provou que checkbox e radio a expõem direto. Gesto por pixel quebra
-                // em tela de outro tamanho; a ação da árvore vale em qualquer aparelho.
+                // ACTION_CLICK is the tree's own action, not a coordinate gesture: 247
+                // proved that checkbox and radio expose it directly. A pixel gesture
+                // breaks on a screen of a different size; the tree's action works on any device.
                 val ok = nosEscolha[chave]?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
                 if (ok) cliquesFeitos++ else cliquesFalhos++
                 ok
             },
             aoTentarDeNovo = { retomar() },
             estadoAoVivo = {
-                // o log do laço + em que passo o motor está AGORA. Com a rodada encerrada
-                // entra também o motivo da parada, que é o que explica "parou cedo".
+                // the loop's log + which step the engine is on RIGHT NOW. Once the round
+                // ends, the reason it stopped comes in too, which is what explains
+                // "stopped early".
                 buildList {
                     addAll(laco)
                     val m = motor
@@ -537,32 +551,33 @@ class FourFormService : AccessibilityService() {
     }
 
     /**
-     * Os campos que ficaram em "não tenho esse dado" viram pergunta à LLM da casa
-     * (brief 245), um a um, numa THREAD única: a main thread aqui é a do serviço de
-     * acessibilidade, e rede nela congela o preenchimento na cara da pessoa. ⛔ A
-     * resposta NUNCA é escrita no campo por este caminho: vira cartão no painel
-     * esperando o toque. Qualquer falha (sem rede, timeout, 500, JSON quebrado) deixa
-     * o campo exatamente como está — o runCatching aqui e o Llm.avaliar garantem que
-     * a rodada nunca cai por causa da IA.
+     * Fields that ended up as "I don't have this data" turn into a question to the
+     * house LLM (brief 245), one at a time, on a single THREAD: the main thread here is
+     * the accessibility service's, and networking on it freezes the fill right in front
+     * of the person. ⛔ The response is NEVER written to the field through this path: it
+     * becomes a card in the panel waiting for a tap. Any failure (no network, timeout,
+     * 500, broken JSON) leaves the field exactly as it is. The runCatching here and
+     * Llm.avaliar guarantee the round never crashes because of the AI.
      */
     private fun consultarLlm(s: Session) {
         val candidatos = Llm.candidatos(s.registros())
         if (candidatos.isEmpty()) return
         val linhas = Llm.linhasDePerfil(Store.perfilTexto(this), Store.aprendidos(this))
-        if (linhas.isEmpty()) return // sem perfil não existe âncora possível; perguntar seria pedir invenção
+        if (linhas.isEmpty()) return // no profile means no possible anchor; asking would mean asking to invent
         candidatos.forEach { llmDiag[it.campo.chave] = Llm.LlmDiagnostico("consultando", null, null) }
         painel?.atualizar()
-        // UMA THREAD POR CAMPO, em paralelo. MEDIDO no teste dele de 10/09: sequencial dava
-        // ~1,6s por campo e o 4º só chegava aos 6,5s — ele fechava o painel antes e dois
-        // campos ficavam em "consultando" para sempre. Em paralelo o último chega em ~2s.
-        // 🎓 Por que Thread crua e não pool: são no máximo alguns campos por rodada, cada um
-        // com timeout de 20s; um executor traria ciclo de vida para gerenciar sem ganho real.
-        // A aplicação do resultado continua serializada no handler da main thread, então
-        // sugestoesLlm e llmDiag nunca são tocados de duas threads ao mesmo tempo.
+        // ONE THREAD PER FIELD, in parallel. MEASURED in his 09/10 test: sequential took
+        // ~1.6s per field and the 4th only arrived at 6.5s. He'd close the panel before
+        // that, and two fields stayed stuck on "asking" forever. In parallel the last one
+        // arrives in ~2s.
+        // 🎓 Why a raw Thread and not a pool: it's at most a few fields per round, each
+        // with a 20s timeout; an executor would bring a lifecycle to manage with no real
+        // gain. Applying the result stays serialized on the main thread's handler, so
+        // sugestoesLlm and llmDiag are never touched by two threads at once.
         for (reg in candidatos) {
             val rotulo = reg.rotulo ?: continue
             Thread {
-                if (sessao !== s) return@Thread // a sessão morreu: parar de gastar rede
+                if (sessao !== s) return@Thread // the session died: stop spending network
                 val t0 = System.currentTimeMillis()
                 val resultado = runCatching { LlmBridge.chamar(Llm.corpo(rotulo, linhas)) }
                 val veredito = Llm.avaliar(resultado, linhas)
@@ -579,25 +594,25 @@ class FourFormService : AccessibilityService() {
         }
     }
 
-    /** Desfecho final de um episódio de IA (aceita/editada/descartada), preservando confiança e latência. */
+    /** Final outcome of an AI episode (accepted/edited/discarded), preserving confidence and latency. */
     private fun fecharEpisodioLlm(s: Session, chave: String, desfecho: String) {
         val antes = llmDiag[chave]
         llmDiag[chave] = Llm.LlmDiagnostico(desfecho, antes?.confianca, antes?.latenciaMs)
         gravarDiagnostico(s, voltas = null, aprendidos = 0)
     }
 
-    /** Evento de janela no MEIO do laço: aborta com o motivo certo antes de fechar a sessão. */
+    /** Window event in the MIDDLE of the loop: aborts with the right reason before closing the session. */
     private fun abortarRodadaSeAtiva(motivo: String) {
         if (motor == null) return
         handler.removeCallbacksAndMessages(null)
         encerrarRodada(motivo)
     }
 
-    /** O usuário digitou (ou ditou pelo teclado: para o app é a mesma coisa). */
+    /** The user typed (or dictated via keyboard: same thing to the app). */
     private fun aoMudarTexto(event: AccessibilityEvent) {
         val s = sessao ?: return
         val no = event.source ?: return
-        if (no.isPassword) return // trava dura: senha não é lida nem aqui
+        if (no.isPassword) return // hard lock: password isn't read even here
         val r = Rect()
         no.getBoundsInScreen(r)
         val chave = Scanner.chaveEstavel(
@@ -610,33 +625,33 @@ class FourFormService : AccessibilityService() {
         s.textoMudou(chave, novo)
     }
 
-    /** A tela mudou = fim daquela sessão (multi-página inclusive). Teclado e o próprio app não contam. */
+    /** The screen changed = end of that session (multi-page included). Keyboard and the app itself don't count. */
     private fun aoMudarJanela(event: AccessibilityEvent) {
         if (sessao == null) return
         if (!WindowRule.encerraSessao(event.packageName?.toString(), event.className?.toString(), packageName)) return
         abortarRodadaSeAtiva("the screen changed to another app mid-round")
-        painel?.fechar() // o painel fala de uma tela que já era
-        // ⛔ A BOLHA NÃO FECHA AQUI. Régua dele, 12/09: "a bolinha só deve fechar na hora
-        // que eu jogo ela no lixo". Fechar a bolha na troca de janela obrigava a pessoa a
-        // apertar o botão de acessibilidade de novo a cada ida e volta, e era o que fazia
-        // parecer que o toque fora do painel matava o agente.
+        painel?.fechar() // the panel talks about a screen that's now gone
+        // ⛔ THE BUBBLE DOES NOT CLOSE HERE. His rule, 09/12: "the bubble should only close
+        // when I throw it in the trash". Closing the bubble on window change forced the
+        // person to hit the accessibility button again on every back-and-forth, and that's
+        // what made it look like tapping outside the panel killed the agent.
         fecharSessao()
     }
 
     private fun fecharSessao() {
         val s = sessao ?: return
         sessao = null
-        val recibo = s.fechar() ?: return // sessão sem preenchimento nem aprendizado: recibo não pisca
+        val recibo = s.fechar() ?: return // session with no fills or learning: receipt doesn't fire
         if (recibo.aprendidos.isNotEmpty()) Store.adicionarAprendidos(this, recibo.aprendidos)
         Store.gravarRecibo(this, recibo)
-        // regrava o diagnóstico da rodada com o estado FINAL (painel e aprendizados inclusos)
+        // rewrites the round's diagnostic with the FINAL state (panel and learned entries included)
         if (arquivoDiagnostico != null) gravarDiagnostico(s, voltas = null, aprendidos = recibo.aprendidos.size)
         Notices.recibo(this, recibo)
     }
 
     /**
-     * Grava mesmo com ZERO campos: "vi 400 nós e nenhum era campo de texto" é exatamente
-     * o dado que substitui o print quando a varredura falha numa tela cheia de campos.
+     * Records even with ZERO fields: "saw 400 nodes and none was a text field" is exactly
+     * the data that replaces a screenshot when the scan fails on a screen full of fields.
      */
     private fun gravarDiagnostico(s: Session, voltas: Int?, aprendidos: Int) {
         if (voltas != null) voltasDaRodada = voltas
@@ -649,10 +664,10 @@ class FourFormService : AccessibilityService() {
             cliques = "$cliquesFeitos ok / $cliquesFalhos falhou",
         )
         arquivoDiagnostico = Store.gravarDiagnostico(this, json, sobrescrever = arquivoDiagnostico)
-        // Probe de bancada: só na build de teste, um arquivo por envio, falha em silêncio.
-        // Fica DEPOIS da gravação local de propósito — o arquivo no aparelho é a fonte, a
-        // sonda é a cópia de conveniência; se a ordem fosse inversa, uma rede lenta atrasaria
-        // o que já está garantido.
+        // Bench probe: test build only, one file per upload, fails silently. Comes AFTER
+        // the local write on purpose. The file on the device is the source of truth, the
+        // probe is the convenience copy; if the order were reversed, a slow network would
+        // delay what's already guaranteed.
         Bench.enviar(json, System.currentTimeMillis())
     }
 }

@@ -1,34 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Paleta "Cosmic Luxury", escolhida por ele em 12/09/2026. Substituiu o Material 3 baseline
-     dark do brief 241, cujo roxo #D0BCFF ele recusou: "está com muita cara de IA, muito
-     genérica". E estava certo: magenta/roxo saturado sobre escuro virou o uniforme de todo
-     produto de IA desde 2024, e um app que se vende como o que NÃO inventa não pode parecer
-     igual aos que inventam.
+<!-- "Cosmic Luxury" palette, chosen by him on 09/12/2026. Replaced the Material 3 baseline
+     dark theme from brief 241, whose #D0BCFF purple he rejected: "it looks too much like
+     AI, too generic." And he was right: saturated magenta/purple on dark became the uniform
+     of every AI product since 2024, and an app that sells itself as the one that does NOT
+     make things up can't look like the ones that do.
 
-     REGRA DELE, e é de PROPORÇÃO e não de inventário: cosmic_black + celestial_gold dominam
-     50 a 60% de qualquer tela. As secundárias existem para o que precisa saltar, mas são
-     minoria e derivam da mesma família (nada de semáforo Material, que é o mesmo genérico).
+     HIS RULE, and it's about PROPORTION, not inventory: cosmic_black + celestial_gold dominate
+     50 to 60% of any screen. The secondary colors exist for what needs to pop, but they're a
+     minority and derive from the same family (no Material traffic-light scheme, which is
+     just as generic).
 
-     PROCEDÊNCIA, linha a linha:
-       cosmic_black #080A0F e celestial_gold #D4B16A vieram LITERAIS do print que ele mandou
-       (carrossel "Color Palette #70 · Cosmic Luxury Edition", perfil ui.ux.palette).
-       Todo o resto é derivação: neutros frios no escuro, texto quente na família do ouro.
+     PROVENANCE, line by line:
+       cosmic_black #080A0F and celestial_gold #D4B16A came LITERALLY from the screenshot he sent
+       (carousel "Color Palette #70 · Cosmic Luxury Edition", ui.ux.palette profile).
+       Everything else is derived: cool neutrals in the dark, warm text in the gold family.
 
-     CONTRASTES CALCULADOS (WCAG), com a superfície como fundo:
-       texto 15.34:1 · texto_secundario 9.40:1 · primaria 9.71:1 · aviso 8.75:1
-       · sucesso 8.39:1 · erro 5.09:1 · contorno 3.33:1 (AA gráfico; contorno não carrega texto)
-       texto sobre recipiente_alto 11.89:1 · preto sobre o ouro 9.71:1 -->
+     CALCULATED CONTRASTS (WCAG), with the surface as background:
+       text 15.34:1 · secondary_text 9.40:1 · primary 9.71:1 · warning 8.75:1
+       · success 8.39:1 · error 5.09:1 · outline 3.33:1 (graphic AA; outline carries no text)
+       text over high_container 11.89:1 · black over the gold 9.71:1 -->
 <resources>
-    <color name="superficie">#080A0F</color>                <!-- COSMIC BLACK, literal do print -->
-    <color name="superficie_recipiente">#10141D</color>     <!-- derivado: frio, azulado -->
-    <color name="superficie_recipiente_alto">#1F2532</color><!-- derivado: frio, azulado -->
-    <color name="texto">#E9E2D2</color>                     <!-- derivado: quente, família do ouro -->
-    <color name="texto_secundario">#B9B2A4</color>          <!-- derivado -->
-    <color name="primaria">#D4B16A</color>                  <!-- CELESTIAL GOLD, literal do print -->
-    <color name="sobre_primaria">#080A0F</color>            <!-- o próprio preto sobre o ouro -->
-    <color name="contorno">#5A6478</color>                  <!-- derivado; clareado p/ passar 3:1 -->
-    <color name="erro">#C86450</color>                      <!-- "brasa": só destruição e erro -->
-    <color name="aviso">#DFA050</color>                     <!-- pendência e lacuna declarada -->
-    <color name="sucesso">#9CAF88</color>                   <!-- "sálvia": confirmação e fim -->
-    <color name="icone_fundo">#080A0F</color>               <!-- fundo do ícone adaptativo -->
+    <color name="superficie">#080A0F</color>                <!-- COSMIC BLACK, literal from the screenshot -->
+    <color name="superficie_recipiente">#10141D</color>     <!-- derived: cool, bluish -->
+    <color name="superficie_recipiente_alto">#1F2532</color><!-- derived: cool, bluish -->
+    <color name="texto">#E9E2D2</color>                     <!-- derived: warm, gold family -->
+    <color name="texto_secundario">#B9B2A4</color>          <!-- derived -->
+    <color name="primaria">#D4B16A</color>                  <!-- CELESTIAL GOLD, literal from the screenshot -->
+    <color name="sobre_primaria">#080A0F</color>            <!-- black itself over the gold -->
+    <color name="contorno">#5A6478</color>                  <!-- derived; lightened to pass 3:1 -->
+    <color name="erro">#C86450</color>                      <!-- "ember": only for destruction and error -->
+    <color name="aviso">#DFA050</color>                     <!-- pending item and declared gap -->
+    <color name="sucesso">#9CAF88</color>                   <!-- "sage": confirmation and completion -->
+    <color name="icone_fundo">#080A0F</color>               <!-- adaptive icon background -->
 </resources>

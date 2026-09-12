@@ -6,14 +6,14 @@ import com.mygoll.fourform.scan.Field
 import com.mygoll.fourform.scan.Choice
 
 /**
- * O relatório estruturado de UMA varredura (brief 242, parte C). Substitui o Relatorio
- * do 240 porque este arquivo SAI do aparelho pelo botão de compartilhar, e a régua muda:
- * rótulo e decisão SIM; o VALOR escrito num campo e qualquer coisa de campo de senha,
- * NUNCA. Se ele carregasse dado pessoal, o produto que promete não vazar teria vazado.
+ * The structured report of ONE scan (brief 242, part C). Replaces the 240 Relatorio
+ * because this file LEAVES the device via the share button, and the rule changes: label
+ * and decision YES; the VALUE written to a field and anything from a password field,
+ * NEVER. If it carried personal data, the product that promises not to leak would have leaked.
  *
- * Por campo, além da decisão: qual nível da escada resolveu o rótulo e, quando nenhum
- * resolveu, o que HAVIA disponível no nó — é o que transforma a próxima volta de
- * depuração em leitura de arquivo em vez de adivinhação por print.
+ * Per field, besides the decision: which level of the ladder resolved the label and,
+ * when none did, what WAS available on the node. This is what turns the next round of
+ * debugging into reading a file instead of guessing from a screenshot.
  */
 object Diagnostics {
 
@@ -26,20 +26,22 @@ object Diagnostics {
         paradaPor: String,
         registros: List<Session.Registro>,
         aprendidosNaSessao: Int,
-        // Instrumentação do laço (fechador da rodada 10/09): uma linha por varredura com o
-        // contêiner rolável ESCOLHIDO e a espera usada. Sem isso, "rolei e não apareceu
-        // campo novo" não distingue "o formulário acabou" de "escolhi o contêiner errado"
-        // ou "a árvore não assentou na espera". Default vazio: não quebra chamador velho.
+        // Loop instrumentation (round closer, 09/10): one line per scan with the CHOSEN
+        // scrollable container and the wait used. Without this, "scrolled and no new
+        // field showed up" can't tell apart "the form ended" from "picked the wrong
+        // container" or "the tree didn't settle within the wait". Empty default: doesn't
+        // break the old caller.
         laco: List<String> = emptyList(),
-        // Episódios de LLM por chave de campo (brief 245): desfecho, confiança e latência.
-        // A RESPOSTA e a ÂNCORA nunca entram — o tipo nem as carrega; este arquivo sai do
-        // aparelho e a régua do 242 (zero conteúdo pessoal) continua valendo.
+        // LLM episodes per field key (brief 245): outcome, confidence, and latency. The
+        // RESPONSE and the ANCHOR never go in. The type doesn't even carry them; this
+        // file leaves the device and the 242 rule (zero personal content) still applies.
         llm: Map<String, Llm.LlmDiagnostico> = emptyMap(),
-        // Censo dos campos de ESCOLHA que a varredura via passar e não coletava (só
-        // isEditable entrava). É a medição que responde "o app não preencheu, ou não viu?".
-        // Rótulo e tipo apenas: o ESTADO marcado/desmarcado é dado pessoal e não sai daqui.
+        // Census of CHOICE fields the scan saw go by and didn't collect (only isEditable
+        // used to go in). It's the measurement that answers "did the app not fill it, or
+        // not see it?". Label and type only: the checked/unchecked STATE is personal data
+        // and doesn't leave here.
         escolhas: List<Choice> = emptyList(),
-        /** Placar do ACTION_CLICK nas escolhas: separa "a árvore recusou" de "o nó sumiu". */
+        /** ACTION_CLICK tally on choices: separates "the tree refused" from "the node disappeared". */
         cliques: String = "",
     ): String {
         val sb = StringBuilder()
@@ -65,7 +67,7 @@ object Diagnostics {
         sb.append("],\n")
         sb.append("  \"voltasDeRolagem\": $voltasDeRolagem,\n")
         sb.append("  \"paradaPor\": ${Json.str(paradaPor)},\n")
-        // só a CONTAGEM: o aprendido carrega valor digitado pelo usuário, e valor não sai
+        // just the COUNT: a learned entry carries a value the user typed, and value doesn't leave
         sb.append("  \"aprendidosNaSessao\": $aprendidosNaSessao,\n")
         sb.append("  \"laco\": [")
         sb.append(laco.joinToString(", ") { Json.str(it) })
@@ -98,7 +100,7 @@ object Diagnostics {
         return sb.toString()
     }
 
-    /** O que havia no nó para a escada tentar — o insumo da depuração do dia 12/09. */
+    /** What was available on the node for the ladder to try. The input for 09/12's debugging. */
     private fun sinais(c: Field): String {
         val labeledBy = when {
             c.labeledBy != null -> "com texto"

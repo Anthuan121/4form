@@ -16,12 +16,13 @@ data class Receipt(
 )
 
 /**
- * Uma sessão de preenchimento: nasce no toque do botão de acessibilidade, observa o
- * usuário digitar/corrigir SÓ enquanto está ativa, e morre na mudança de tela.
- * Fechou, parou de observar: é a trava que impede o app de virar escuta permanente.
+ * A fill session: born on the tap of the accessibility button, observes the user
+ * typing/correcting ONLY while active, and dies on screen change.
+ * Once closed, it stops observing: that's the lock that keeps the app from becoming
+ * permanent listening.
  *
- * nivelPreferido é o atalho do aprendizado de caminho (PathMemory.nivelPreferido do
- * pacote): tentado primeiro na escada do Labeler, nunca trava.
+ * nivelPreferido is the path-learning shortcut (PathMemory.nivelPreferido for the
+ * package): tried first in the Labeler's ladder, never a hard stop.
  */
 class Session(
     private val perfil: Profile,
@@ -38,7 +39,7 @@ class Session(
         val campo: Field,
         val rotulo: String?,
         val origemRotulo: String?,
-        var acao: String, // "preencheu" | "aberto"
+        var acao: String, // "preencheu" (filled) | "aberto" (open)
         var valorEscrito: String? = null,
         var fonte: String? = null,
         var motivo: String? = null,
@@ -57,8 +58,9 @@ class Session(
         }
         val r = Labeler.rotulo(campo, nivelPreferido)
             ?: return Decisao.DeixarAberto("I couldn't identify the field")
-        // viewId cru ("question 66138698") não é pergunta, é id daquela vaga: casar isso
-        // com o perfil seria exatamente a invenção que o produto promete não fazer.
+        // a raw viewId ("question 66138698") is not a question, it's that job's id:
+        // matching it against the profile would be exactly the invention this product
+        // promises not to do.
         if (r.second == "viewId-cru") {
             return Decisao.DeixarAberto("I don't know what this field is asking")
         }
@@ -68,31 +70,33 @@ class Session(
     }
 
     /**
-     * A mesma decisão, para uma opção de escolha: marcar SÓ quando o perfil já declara
-     * aquilo. Fala dele em 12/09, sobre a opção que ficou em branco: *"essa é uma escolha
-     * óbvia, se estivesse no meu perfil saberia qual das duas escolher"* — a régua é o
-     * perfil, não a probabilidade. DeixarAberto aqui ⛔ não pede nada à pessoa e ⛔ não
-     * trava: o laço segue para o próximo item e a escolha vira uma linha de resumo no fim.
+     * The same decision, for a choice option: check it ONLY when the profile already
+     * declares it. His words on 09/12, about the option that stayed blank: *"that's an
+     * obvious choice, if it were in my profile it would know which of the two to pick"*.
+     * The rule is the profile, not probability. DeixarAberto here ⛔ asks the person
+     * nothing and ⛔ doesn't freeze: the loop moves to the next item and the choice
+     * becomes a summary line at the end.
      */
     fun decidirEscolha(escolha: Choice): Decisao {
         if (escolha.marcada) return Decisao.DeixarAberto("already checked: I won't uncheck it")
         if (!escolha.clicavel) return Decisao.DeixarAberto("the accessibility tree won't let me click this option")
         val rotulo = escolha.rotulo?.takeIf { it.isNotBlank() }
             ?: return Decisao.DeixarAberto("option with no label: I don't know what it states")
-        // 1ª escada: a pergunta do grupo casa com o perfil e a opção é a resposta ("Você
-        // reside num país europeu?" + "reside em país europeu: sim" + opção "Yes").
+        // 1st rung: the group's question matches the profile and the option is the
+        // answer ("Do you reside in a European country?" + "reside em país europeu: sim"
+        // + option "Yes").
         escolha.pergunta?.let { p ->
             perfil.respostaParaEscolha(p, rotulo)?.let {
                 return Decisao.Preencher(it.valor, it.fonte)
             }
         }
-        // 2ª escada: sem pergunta legível, a própria opção precisa estar declarada.
+        // 2nd rung: with no readable question, the option itself needs to be declared.
         val achado = perfil.opcaoBateComPerfil(rotulo)
             ?: return Decisao.DeixarAberto("\"$rotulo\": your profile doesn't declare this")
         return Decisao.Preencher(achado.valor, achado.fonte)
     }
 
-    /** O serviço chama depois de tentar escrever; escreveu=false quando o campo recusou. */
+    /** The service calls this after trying to write; escreveu=false when the field refused. */
     fun registrar(campo: Field, decisao: Decisao, escreveu: Boolean = true) {
         val r = Labeler.rotulo(campo, nivelPreferido)
         val reg = Registro(campo, r?.first, r?.second, "aberto")
@@ -111,10 +115,10 @@ class Session(
     }
 
     /**
-     * O usuário mexeu num campo rastreado. Vira aprendizado pendente quando:
-     * a sessão está ativa, o campo não é senha, tem rótulo, o texto não é vazio e não é
-     * o eco da nossa própria escrita. Digitação letra a letra só atualiza o pendente
-     * (o último valor vence); o aprendizado só é efetivado no fechar().
+     * The user touched a tracked field. Becomes a pending learned entry when: the
+     * session is active, the field isn't a password, it has a label, the text isn't
+     * empty, and it isn't the echo of our own write. Letter-by-letter typing only
+     * updates the pending entry (the last value wins); learning is only finalized in fechar().
      */
     fun textoMudou(chave: String, novoTexto: String): Boolean {
         if (!ativa) return false
@@ -131,7 +135,7 @@ class Session(
         return true
     }
 
-    /** Desfazer do painel: o item preenchido volta a aberto (o serviço limpa o nó). */
+    /** Undo from the panel: the filled item goes back to open (the service clears the node). */
     fun desfazer(chave: String): Boolean {
         val reg = porChave[chave] ?: return false
         if (reg.acao != "preencheu") return false
@@ -144,9 +148,10 @@ class Session(
     }
 
     /**
-     * O usuário digitou o valor de um item aberto ALI NO PAINEL. Marca como preenchido e
-     * vira aprendizado na hora (o eco do ACTION_SET_TEXT não duplica: textoMudou ignora
-     * texto igual ao valorEscrito). viewId cru não tem rótulo confiável: escreve, não aprende.
+     * The user typed the value of an open item RIGHT THERE IN THE PANEL. Marks it filled
+     * and turns it into a learned entry right away (the ACTION_SET_TEXT echo doesn't
+     * duplicate it: textoMudou ignores text equal to valorEscrito). A raw viewId has no
+     * reliable label: it writes, it doesn't learn.
      */
     fun escreverAgora(chave: String, valor: String, fonte: String = "you, in the panel"): Boolean {
         val reg = porChave[chave] ?: return false
@@ -171,8 +176,8 @@ class Session(
         pendentes.isNotEmpty() || porChave.values.any { it.acao == "preencheu" }
 
     /**
-     * Fim de sessão (a tela mudou). Devolve o recibo, ou NULL quando nada foi preenchido
-     * nem aprendido: recibo sem conteúdo é ruído, não feedback.
+     * End of session (the screen changed). Returns the receipt, or NULL when nothing was
+     * filled or learned: a receipt with no content is noise, not feedback.
      */
     fun fechar(): Receipt? {
         if (!ativa) return null
