@@ -61,8 +61,15 @@ object Labeler {
      * de verdade estava logo acima, no nível 6, e a escada nunca chegava lá.
      */
     private val PLACEHOLDER = Regex(
-        "^(type|write|enter|start typing|your answer|answer|escreva|digite|sua resposta|" +
-            "resposta|escribe|introduce|tu respuesta)\\b.*",
+        // "Select..." entrou em 12/09 16:35, medido no aparelho: um dropdown da Canonical trazia
+        // hint="Select...", o viewId era cru (question_58869860) e a pergunta de verdade estava a
+        // 11px de distância. A escada parou no nível 2 e mandou "Select..." para a IA, que
+        // respondeu com a única linha do perfil que tinha cara de resposta ("5+ years").
+        // ⚠️ Desde que a IA passou a ESCREVER, um rótulo errado deixou de ser um cartão ignorável
+        // e virou texto na tela da pessoa. O guard de placeholder ficou mais caro de estar incompleto.
+        "^(type|write|enter|start typing|your answer|answer|select|choose|pick|" +
+            "escreva|digite|sua resposta|resposta|selecione|escolha|" +
+            "escribe|introduce|tu respuesta|seleccione|elegir)\\b.*",
         RegexOption.IGNORE_CASE,
     )
 
