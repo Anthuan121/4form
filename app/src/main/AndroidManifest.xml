@@ -39,6 +39,9 @@
                      lista do compartilhar. Mais estreito que "*/*" de propósito: não
                      queremos o app em TODO compartilhar. O código já lê por stream. -->
                 <data android:mimeType="application/octet-stream" />
+                <!-- Real resumes arrive as PDF (brief 254). Extraction is local, via
+                     pdfbox-android; the file itself is never kept. -->
+                <data android:mimeType="application/pdf" />
             </intent-filter>
         </activity>
 

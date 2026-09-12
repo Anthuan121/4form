@@ -42,6 +42,10 @@ android {
 }
 
 dependencies {
-    // Zero dependência de runtime de propósito: Activity pura + tema de plataforma.
+    // "Zero runtime dependency" stopped being true on 09/12 (brief 254): a real resume
+    // arrives as PDF, and PDF has no text ready to read (it's a compressed stream, and
+    // Android's own PdfRenderer only rasterizes a page as an image, it does not extract
+    // text). com.tom-roush:pdfbox-android is the deliberate, single dependency of this app.
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     testImplementation("junit:junit:4.13.2")
 }

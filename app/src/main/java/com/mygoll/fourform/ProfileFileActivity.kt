@@ -27,14 +27,18 @@ import com.mygoll.fourform.Ui.titulo
 import com.mygoll.fourform.scan.Extractor
 import com.mygoll.fourform.agent.Llm
 import com.mygoll.fourform.scan.Merger
+import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
+import com.tom_roush.pdfbox.pdmodel.PDDocument
+import com.tom_roush.pdfbox.text.PDFTextStripper
 
 /**
- * A entrada do perfil por arquivo (.md/.txt) e por compartilhar, com a tela de confirmação
- * OBRIGATÓRIA: o app extrai, MOSTRA o que achou com a linha de origem do lado, a pessoa
- * edita, apaga e confirma; só o botão "Salvar perfil" grava. Sem confirmação, nada é salvo.
- * O arquivo original não fica guardado: é lido, extraído e descartado da memória.
- * PDF ficou fora desta versão: extrair texto de PDF exige biblioteca de 3 MB ou mais e o
- * app abre mão do recurso pra continuar mínimo (medição no brief 243).
+ * Profile intake by file (.md/.txt/.pdf) and by share, with a MANDATORY confirmation
+ * screen: the app extracts, SHOWS what it understood with the source line next to it, the
+ * person edits, deletes and confirms; only the "Save profile" button writes to disk. No
+ * confirmation, nothing is saved. The original file is never kept: it is read, extracted
+ * and discarded from memory. PDF (brief 254) follows the same contract: pdfbox-android
+ * extracts the text locally, off the main thread, and the text enters the SAME Extractor
+ * that already reads .md/.txt.
  */
 class ProfileFileActivity : Activity() {
 
@@ -71,8 +75,7 @@ class ProfileFileActivity : Activity() {
             if (uri == null) {
                 mostrarErro("Nothing readable came through the share.")
             } else {
-                val (texto, erro) = lerUri(uri)
-                if (texto == null) mostrarErro(erro) else montarConfirmacao(texto)
+                lerUri(uri, ::tratarLeitura)
             }
         } else {
             // veio da tela principal: abre o seletor do sistema na hora. type "*/*" de
@@ -95,17 +98,37 @@ class ProfileFileActivity : Activity() {
             finish() // a pessoa desistiu no seletor; nada a fazer
             return
         }
-        val (texto, erro) = lerUri(uri)
-        if (texto == null) mostrarErro(erro) else montarConfirmacao(texto)
+        lerUri(uri, ::tratarLeitura)
+    }
+
+    private fun tratarLeitura(leitura: Leitura) {
+        when (leitura) {
+            is Leitura.Ok -> montarConfirmacao(leitura.texto)
+            is Leitura.PdfSemTexto -> mostrarPdfSemTexto()
+            is Leitura.Erro -> mostrarErro(leitura.msg)
+        }
     }
 
     // ---- leitura ----
 
-    /** Lê o conteúdo pra memória. Devolve (texto, "") no sucesso ou (null, motivo). */
+    /** Async result of reading a file: text ready, PDF with no selectable text (scanned as
+     *  an image), or error. Async because extracting text from a PDF cannot run on the
+     *  main thread (a 2 page resume would freeze the screen). */
+    private sealed class Leitura {
+        data class Ok(val texto: String) : Leitura()
+        object PdfSemTexto : Leitura()
+        data class Erro(val msg: String) : Leitura()
+    }
+
     /** Só o NOME, para a tela dizer o que leu. ⛔ O arquivo em si nunca é guardado. */
     private var nomeDoArquivo: String? = null
+    private var pdfBoxIniciado = false
 
-    private fun lerUri(uri: Uri): Pair<String?, String> {
+    /** Reads the file content and calls `aoTerminar` with the result. For .md/.txt the
+     *  callback fires synchronously (same thread); for PDF the extraction runs on its own
+     *  thread and comes back through the UI handler, the same pattern already used by the
+     *  "Let the AI read" button. */
+    private fun lerUri(uri: Uri, aoTerminar: (Leitura) -> Unit) {
         nomeDoArquivo = runCatching {
             contentResolver.query(uri, null, null, null, null)?.use { c ->
                 val i = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
@@ -115,21 +138,37 @@ class ProfileFileActivity : Activity() {
 
         val bytes = runCatching {
             contentResolver.openInputStream(uri)?.use { it.readBytes() }
-        }.getOrNull() ?: return null to "Couldn't open that file."
+        }.getOrNull() ?: return aoTerminar(Leitura.Erro("Couldn't open that file."))
         if (bytes.size > LIMITE_BYTES) {
-            return null to "File too big (${bytes.size / 1024} KB; the limit is 512 KB). Send just the part with your data."
+            return aoTerminar(
+                Leitura.Erro("File too big (${bytes.size / 1024} KB; the limit is 512 KB). Send just the part with your data.")
+            )
         }
         if (bytes.size >= 4 && bytes.decodeToString(0, 4) == "%PDF") {
-            return null to (
-                "PDF is out of scope for this version: reading PDF text would need a 3 MB+ library " +
-                    "inside the app. Ask for the resume as .md or .txt (an AI can convert it in seconds), " +
-                    "or share the text directly to 4Form."
-                )
+            Thread {
+                val texto = runCatching { extrairTextoDoPdf(bytes) }.getOrElse { "" }
+                runOnUiThread {
+                    aoTerminar(if (texto.isBlank()) Leitura.PdfSemTexto else Leitura.Ok(texto))
+                }
+            }.start()
+            return
         }
         if (bytes.any { it == 0.toByte() }) {
-            return null to "That doesn't look like text (.md or .txt). I don't know how to read this format."
+            return aoTerminar(Leitura.Erro("That doesn't look like text (.md, .txt or .pdf). I don't know how to read this format."))
         }
-        return bytes.decodeToString() to ""
+        aoTerminar(Leitura.Ok(bytes.decodeToString()))
+    }
+
+    /** Local text extraction from a PDF. ⛔ The PDF bytes do not survive past this
+     *  function: they come in, become text, the ByteArray goes out of scope.
+     *  `PDFBoxResourceLoader.init` loads the fallback fonts pdfbox-android needs and only
+     *  needs to run once. */
+    private fun extrairTextoDoPdf(bytes: ByteArray): String {
+        if (!pdfBoxIniciado) {
+            PDFBoxResourceLoader.init(applicationContext)
+            pdfBoxIniciado = true
+        }
+        return PDDocument.load(bytes).use { PDFTextStripper().getText(it) }
     }
 
     // ---- a tela de confirmação ----
@@ -305,6 +344,39 @@ class ProfileFileActivity : Activity() {
         Store.salvarPerfilTexto(this, Merger.mesclar(Store.perfilTexto(this), confirmados))
         Toast.makeText(this, "Profile saved: ${confirmados.size} items. Nothing left this device.", Toast.LENGTH_LONG).show()
         finish()
+    }
+
+    /** PDF with NO selectable text at all: a resume scanned as an image. ⛔ Does not lock
+     *  up, ⛔ is not a technical error: offers pasting the text by hand and goes through
+     *  the SAME Extractor. */
+    private fun mostrarPdfSemTexto() {
+        col.removeAllViews()
+        col.addView(titulo("This PDF has no text I can read"))
+        col.addView(linha("It looks like a scan or a photo turned into a PDF, with no selectable text inside. Paste the resume text below instead."))
+        val caixaTexto = EditText(this).apply {
+            hint = "Paste your resume text here"
+            minLines = 6
+            gravity = android.view.Gravity.TOP
+        }
+        col.addView(caixaTexto)
+        col.addView(
+            botaoPrimario("Use this text") {
+                val texto = caixaTexto.text.toString()
+                if (texto.isBlank()) {
+                    Toast.makeText(this, "Paste something first.", Toast.LENGTH_SHORT).show()
+                } else {
+                    montarConfirmacao(texto)
+                }
+            }
+        )
+        col.addView(botao("Choose another file") {
+            val i = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "*/*"
+            }
+            startActivityForResult(i, PEDIDO_ARQUIVO)
+        })
+        col.addView(botao("Back") { finish() })
     }
 
     private fun mostrarErro(msg: String) {

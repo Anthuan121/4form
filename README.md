@@ -105,6 +105,8 @@ Install, enable 4Form in Android accessibility settings, open a job application,
 
 The optional language model bridge reads its endpoint from `local.properties`, which is gitignored. Clone this repo and it compiles with an empty endpoint, and the app degrades gracefully to profile only matching. No secret lives in source.
 
+**One dependency, deliberate.** The app carried zero runtime dependencies until 12/09, when a real resume showed up as a PDF. A PDF is a compressed stream, not text, and Android's own `PdfRenderer` only rasterizes a page as an image, it does not extract text. `com.tom-roush:pdfbox-android` reads the PDF locally, on the device, and the file itself is never kept: text goes to the same confirmation screen as `.md`/`.txt`, the PDF bytes are discarded right after.
+
 ---
 
 ## Honest status
