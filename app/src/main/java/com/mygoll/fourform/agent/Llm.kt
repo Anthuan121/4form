@@ -2,6 +2,7 @@ package com.mygoll.fourform.agent
 
 import com.mygoll.fourform.scan.Json
 import com.mygoll.fourform.scan.LinhaNaoEntendida
+import com.mygoll.fourform.scan.Choice
 import com.mygoll.fourform.scan.Learned
 import com.mygoll.fourform.scan.Matcher
 import com.mygoll.fourform.scan.Extractor
@@ -208,6 +209,17 @@ object Llm {
     // list, plus the anchor existing in the profile) are mandatory; the second never
     // replaces the first.
     // ─────────────────────────────────────────────────────────────────────────────
+
+
+    /**
+     * Groups the choices of a screen by the question text above them. The tree gives us no
+     * group id, so the question IS the group key: options that answer the same question sit
+     * under the same enunciado. Only options we can actually act on enter the group.
+     */
+    fun agruparPorPergunta(escolhas: List<Choice>): Map<String, List<Choice>> =
+        escolhas
+            .filter { it.clicavel && !it.marcada && !it.rotulo.isNullOrBlank() && !it.pergunta.isNullOrBlank() }
+            .groupBy { it.pergunta!!.trim() }
 
     fun corpoEscolha(pergunta: String, opcoes: List<String>, linhasDePerfil: List<String>): String {
         val prompt = buildString {

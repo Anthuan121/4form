@@ -599,9 +599,13 @@ class FourFormService : AccessibilityService() {
                 val veredito = Llm.avaliarEscolha(resultado, opcoes, linhas)
                 handler.post {
                     if (sessao !== s) return@post
+                    // O 259 unificou os vereditos: escolha e campo de texto usam o mesmo
+                    // Veredito, porque a régua passou a ser a mesma (procedência, não cópia).
+                    // A opção marcada vem em sugestao.resposta, já validada contra a lista.
                     when (veredito) {
-                        is Llm.VereditoEscolha.Marcar -> {
-                            val alvo = grupo.firstOrNull { it.rotulo?.trim() == veredito.opcao }
+                        is Llm.Veredito.Responder -> {
+                            val opcao = veredito.sugestao.resposta.trim()
+                            val alvo = grupo.firstOrNull { it.rotulo?.trim() == opcao }
                             val ok = alvo != null &&
                                 nosEscolha[alvo.chave]?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
                             if (ok && alvo != null) {
@@ -611,7 +615,7 @@ class FourFormService : AccessibilityService() {
                                 if (alvo != null) cliquesFalhos++
                             }
                         }
-                        is Llm.VereditoEscolha.NaoMarcar -> Unit // segue "nenhum": nada a fazer
+                        is Llm.Veredito.NaoResponder -> Unit // segue "nenhum": nada a fazer
                     }
                     gravarDiagnostico(s, voltas = null, aprendidos = 0)
                 }
