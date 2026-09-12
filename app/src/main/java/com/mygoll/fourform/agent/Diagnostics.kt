@@ -60,8 +60,12 @@ object Diagnostics {
         sb.append("  \"escolhas\": [")
         sb.append(
             escolhas.joinToString(", ") { e ->
+                // origem: "perfil" | "ia" | "nenhum" (a decisão ainda não rodou, ou nada bateu).
+                // Sem isto, zero cliques tinha três causas possíveis e nenhuma forma de
+                // distinguir de fora: sem rótulo, rótulo sem match no perfil, ou IA descartada.
                 "{\"tipo\": ${Json.str(e.tipo)}, \"rotulo\": ${Json.str(e.rotulo ?: "?")}, " +
-                    "\"viewId\": ${Json.str(e.viewId ?: "")}, \"webview\": ${e.dentroDeWebView}}"
+                    "\"viewId\": ${Json.str(e.viewId ?: "")}, \"webview\": ${e.dentroDeWebView}, " +
+                    "\"origem\": ${Json.str(e.origemDecisao ?: "nenhum")}}"
             }
         )
         sb.append("],\n")

@@ -1,36 +1,36 @@
 package com.mygoll.fourform.scan
 
 /**
- * Names a field. The ladder tries the most RELIABLE signal before the noisiest one,
- * and the returned origin says which level resolved it (it's the input for the
- * diagnostic and for path learning):
+ * Dá nome a um campo. A escada tenta o sinal mais CONFIÁVEL antes do mais barulhento,
+ * e a origem devolvida diz qual nível resolveu (é o insumo do diagnóstico e do
+ * aprendizado de caminho):
  *
- *   1. labeledBy  - label declared by the page's author (<label for>, aria-label)
+ *   1. labeledBy  — rótulo declarado pelo autor da página (<label for>, aria-label)
  *   2. hint
- *   3. descricao  - the node's own contentDescription
- *   4. viewId     - ONLY when readable; "question 66138698" isn't a name, it's a job id
- *   5. irmao      - sibling text in the same parent (WebView), structural label
- *   6. vizinho    - geometry: the closest text above/to the left, within the radius
- *   7. viewId-cru - last resort, and the Session NEVER matches this against the profile
+ *   3. descricao  — contentDescription do próprio nó
+ *   4. viewId     — SÓ quando legível; "question 66138698" não é nome, é id de vaga
+ *   5. irmao      — texto de irmão no mesmo pai (WebView), rótulo estrutural
+ *   6. vizinho    — geometria: o texto mais próximo acima/à esquerda, dentro do raio
+ *   7. viewId-cru — último recurso, e a Session NUNCA casa este com o perfil
  *
- * The list is extensible on purpose (vision/OCR is the next step, out of scope for this brief).
+ * A lista é extensível de propósito (visão/OCR é o degrau seguinte, fora deste brief).
  */
 object Labeler {
 
-    // ponytail: 240px inherited from form-agent-core; it's a guess documented there, not
-    // a measurement. Only the on-device test, with a real form, calibrates this number.
+    // ponytail: 240px herdado do form-agent-core; é chute documentado lá, não medida.
+    // Só o teste no aparelho, com formulário real, calibra este número.
     const val RAIO_PX = 240
 
-    /** Origins that count as "the level that resolved it" (viewId-cru is excluded on purpose). */
+    /** Origens que contam como "nível que resolveu" (viewId-cru fica de fora de propósito). */
     val NIVEIS = listOf("labeledBy", "hint", "descricao", "viewId", "irmao", "vizinho")
 
     /**
-     * A placeholder that just says TYPE isn't the field's name. Measured on his device on
-     * 09/12, on Ashby (jobs.ashbyhq.com, a Ceartas job): the four fields on screen had the
-     * same hint, "Type here...". Since hint is level 2 of the ladder, the app named all
-     * four "Type here", matched nothing against the profile, and even sent "Type here" to
-     * the AI. 4 network calls to ask the model what a placeholder is. The real question
-     * was right above, at level 6, and the ladder never got there.
+     * Placeholder que manda DIGITAR não é o nome do campo. Medido no aparelho dele em
+     * 12/09, no Ashby (jobs.ashbyhq.com, vaga da Ceartas): os quatro campos da tela tinham
+     * o mesmo hint, "Type here...". Como hint é o nível 2 da escada, o app batizava os
+     * quatro de "Type here", não casava nada com o perfil e ainda mandava "Type here" para
+     * a IA — 4 chamadas de rede para perguntar ao modelo o que é um placeholder. A pergunta
+     * de verdade estava logo acima, no nível 6, e a escada nunca chegava lá.
      */
     private val PLACEHOLDER = Regex(
         "^(type|write|enter|start typing|your answer|answer|escreva|digite|sua resposta|" +
@@ -41,26 +41,26 @@ object Labeler {
     fun hintGenerico(hint: String): Boolean = PLACEHOLDER.matches(hint.trim())
 
     /**
-     * A "raw" viewId is an instance id, not a field name: "question 66138698" identifies
-     * THAT specific board's job, and another job produces a different number (same lesson
-     * from Binspector: an anchor is text, not an id). Rule: a stretch of 2+ digits in a
-     * row gives away the raw id; "address line 1" (1 digit) is still readable.
+     * viewId "cru" é id de instância, não nome de campo: "question 66138698" identifica
+     * AQUELA vaga do board, e outra vaga produz outro número (mesma lição do Binspector:
+     * âncora é texto, não id). Régua: um trecho de 2+ dígitos seguidos denuncia o cru;
+     * "address line 1" (1 dígito) continua legível.
      */
     fun viewIdCru(nome: String): Boolean = Regex("\\d{2,}").containsMatchIn(nome)
 
     /**
-     * (label text, origin). nivelPreferido is the path-learning SHORTCUT: try that level
-     * first and, if it doesn't resolve on this field, walk the whole ladder. A shortcut,
-     * never a hard stop.
+     * (texto do rótulo, origem). nivelPreferido é o ATALHO do aprendizado de caminho:
+     * tenta aquele nível primeiro e, se ele não resolver neste campo, percorre a escada
+     * inteira — atalho, nunca trava.
      */
     fun rotulo(c: Field, nivelPreferido: String? = null): Pair<String, String>? {
         if (nivelPreferido != null) porNivel(c, nivelPreferido)?.let { return it }
         for (nivel in NIVEIS) {
-            if (nivel == nivelPreferido) continue // already tried above
+            if (nivel == nivelPreferido) continue // já tentado acima
             porNivel(c, nivel)?.let { return it }
         }
-        // end of the ladder: the raw viewId comes out as a DISPLAY label ("I don't know
-        // what this field is asking" comes from Session), never as a matching key against the profile.
+        // fim da escada: o viewId cru sai como rótulo de EXIBIÇÃO ("não sei o que este
+        // campo pergunta" vem da Session), nunca como chave de casamento com o perfil.
         c.viewId?.takeIf { it.isNotBlank() }?.let { id ->
             nomeDoViewId(id)?.let { return it to "viewId-cru" }
         }
@@ -69,10 +69,9 @@ object Labeler {
 
     private fun porNivel(c: Field, nivel: String): Pair<String, String>? = when (nivel) {
         "labeledBy" -> c.labeledBy?.takeIf { it.isNotBlank() }?.let { it.trim() to "labeledBy" }
-        // a hint repeated across several fields on the same screen doesn't identify any
-        // field, and this defense is the one that crosses languages: it works for "Type
-        // here" and for the equivalent in any language, without depending on the pattern
-        // list above.
+        // hint repetido em vários campos da mesma tela não identifica campo nenhum, e essa
+        // defesa é a que atravessa idioma: vale para "Type here" e para o equivalente em
+        // qualquer língua, sem depender da lista de padrões acima.
         "hint" -> c.hint
             ?.takeIf { it.isNotBlank() && !c.hintRepetidoNaTela && !hintGenerico(it) }
             ?.let { it.trim() to "hint" }
@@ -90,10 +89,10 @@ object Labeler {
         id.substringAfterLast('/').replace('_', ' ').replace('-', ' ').trim().ifBlank { null }
 
     /**
-     * The closest neighbor ABOVE (with horizontal overlap) or TO THE LEFT (with vertical
-     * overlap), measured in edge-to-edge pixels. It's how a human finds a field's label in
-     * a form. NO radius cap here: rotulo() is what cuts it off, so the diagnostic can
-     * still record the real distance of the text that got left out.
+     * O vizinho mais próximo ACIMA (com sobreposição horizontal) ou À ESQUERDA (com
+     * sobreposição vertical), medido em pixels de borda a borda. É como um humano acha
+     * o rótulo de um campo num formulário. SEM teto de raio aqui: quem corta é rotulo(),
+     * para o diagnóstico poder registrar a distância real do texto que ficou de fora.
      */
     fun vizinhoMaisProximo(campo: Box, textos: List<Pair<String, Box>>): RotuloVizinho? {
         var melhor: RotuloVizinho? = null
@@ -108,10 +107,33 @@ object Labeler {
     }
 
     /**
-     * The question for a group of options: the closest text ABOVE that ⛔ isn't the label
-     * of another option in the same group. Above only, on purpose. In a form the question
-     * sits on top of the group, and a radio's side neighbor is almost always the radio
-     * next to it, which is an answer, not a question.
+     * The label of a CHOICE option (radio, checkbox): the text to the RIGHT, on the SAME
+     * line (vertical overlap). In a form, the group's question sits ABOVE the group and the
+     * option sits BESIDE its own input, two different geometric roles. Before this method
+     * the app used vizinhoMaisProximo (which accepts above OR left) for both, so the text
+     * above won by being closer and became the option's label instead of the question's.
+     * Measured on device 09/12: 420 choice fields seen, 0 clicks, because the saved label
+     * was the whole question ("What is your level of English?"), which no profile declares.
+     * NO radius cap here, same reason as vizinhoMaisProximo: the caller is the one who cuts.
+     */
+    fun rotuloADireita(opcao: Box, textos: List<Pair<String, Box>>): RotuloVizinho? {
+        var melhor: RotuloVizinho? = null
+        for ((texto, t) in textos) {
+            val limpo = texto.trim()
+            if (limpo.isBlank()) continue
+            val sobrepoeVertical = t.topo < opcao.baixo && t.baixo > opcao.topo
+            if (!sobrepoeVertical || t.esq < opcao.dir) continue
+            val dist = t.esq - opcao.dir
+            if (melhor == null || dist < melhor.distanciaPx) melhor = RotuloVizinho(limpo, dist)
+        }
+        return melhor
+    }
+
+    /**
+     * A pergunta de um grupo de opções: o texto mais próximo ACIMA que ⛔ não seja rótulo de
+     * outra opção do mesmo grupo. Só acima de propósito — num formulário a pergunta fica em
+     * cima do grupo, e o vizinho lateral de um radio é quase sempre o radio do lado, que é
+     * resposta e não pergunta.
      */
     fun perguntaAcima(
         opcao: Box,
@@ -124,9 +146,8 @@ object Labeler {
             if (limpo.isBlank() || Matcher.normalizar(limpo) in rotulosDeOpcao) continue
             if (t.baixo > opcao.topo) continue
             val sobrepoe = t.esq < opcao.dir && t.dir > opcao.esq
-            // the question usually starts to the left of the group, so text that starts
-            // before the option and doesn't go past it also counts: without this, a long
-            // question disappears.
+            // a pergunta costuma começar à esquerda do grupo, então vale também o texto que
+            // começa antes da opção e não a ultrapassa: sem isso, pergunta longa some.
             if (!sobrepoe && !(t.esq <= opcao.esq && t.dir > opcao.esq)) continue
             val dist = opcao.topo - t.baixo
             if (melhor == null || dist < melhor.second) melhor = limpo to dist

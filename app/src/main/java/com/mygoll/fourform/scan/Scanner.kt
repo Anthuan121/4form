@@ -9,17 +9,17 @@ import com.mygoll.fourform.scan.Choice
 import com.mygoll.fourform.scan.Labeler
 
 /**
- * Walks the accessibility tree ONCE and returns: the editable fields (as Field, pure and
- * testable), the visible texts (candidates for a neighboring label), each field's real
- * node (for ACTION_SET_TEXT), and the SCROLLABLE node with the largest area (for the
- * Engine's loop to request ACTION_SCROLL_FORWARD, the tree's own action, not a coordinate
- * gesture, on purpose: a gesture breaks on a screen of a different size). Visible nodes
- * only: what the user can't see, the app doesn't touch.
+ * Percorre a árvore de acessibilidade UMA vez e devolve: os campos editáveis (como Field,
+ * puro e testável), os textos visíveis (candidatos a rótulo vizinho), o nó real de cada
+ * campo (para o ACTION_SET_TEXT) e o nó ROLÁVEL de maior área (para o laço do Engine pedir
+ * ACTION_SCROLL_FORWARD — ação da própria árvore, não gesto por coordenada, de propósito:
+ * gesto quebra em tela de tamanho diferente). Só nós visíveis: o que o usuário não vê,
+ * o app não toca.
  */
 object Scanner {
 
-    // ponytail: node cap against a pathological tree (an infinite web page); if it's
-    // exceeded, the field beyond the cap simply doesn't join the round.
+    // ponytail: teto de nós contra árvore patológica (página web infinita); se estourar,
+    // o campo fora do teto simplesmente não entra na rodada.
     private const val MAX_NOS = 1500
 
     class Saida(
@@ -27,23 +27,24 @@ object Scanner {
         val nos: Map<String, AccessibilityNodeInfo>,
         val rolavel: AccessibilityNodeInfo?,
         val totalNos: Int,
-        /** Census of CHOICE fields: count and label only, no action (see Choice). */
+        /** Censo dos campos de ESCOLHA: só contagem e rótulo, nenhuma ação (ver Choice). */
         val escolhas: List<Choice> = emptyList(),
-        /** Each choice's real node, for the ACTION_CLICK the person triggers from the panel. */
+        /** Nó real de cada escolha, para o ACTION_CLICK disparado pela pessoa no painel. */
         val nosEscolha: Map<String, AccessibilityNodeInfo> = emptyMap(),
         /**
-         * This scan's fingerprint: how many nodes, and what was seen. Feeds the Engine's
-         * stopping rule (did the screen stop moving?). Structural identity only, no typed value goes in here.
+         * Impressão digital desta varredura: quantos nós, e o que foi visto. Serve à régua
+         * de parada do Engine (a tela parou de se mover?). Só identidade estrutural, nenhum
+         * valor digitado entra aqui.
          */
         val assinatura: String = "",
     )
 
     /**
-     * Classifies a NON-editable node that's still an answerable field.
-     * Sources (brief 247, reading Chromium's source): checkbox/radio arrive with
-     * isCheckable propagated from Blink; a closed <select> arrives as a Spinner and is
-     * always a leaf (the <option>s never become children); <input type=date> arrives
-     * with inputType DATETIME. Returns null for the rest, which is regular page text.
+     * Classifica um nó NÃO editável que ainda assim é um campo respondível.
+     * Fontes (brief 247, leitura do fonte do Chromium): checkbox/radio chegam com
+     * isCheckable propagado do Blink; <select> fechado chega como Spinner e é sempre folha
+     * (as <option> nunca viram filhos); <input type=date> chega com inputType DATETIME.
+     * Devolve null para o resto, que é texto comum de página.
      */
     private fun tipoDeEscolha(no: AccessibilityNodeInfo): String? {
         val classe = no.className?.toString() ?: ""
@@ -81,8 +82,8 @@ object Scanner {
             visitados++
             val ehWeb = dentroWeb || no.className?.contains("WebView") == true
             if (no.isVisibleToUser) {
-                // the scrollable node with the LARGEST area tends to be the page's main
-                // container, not some small carousel in the middle of it
+                // o rolável de MAIOR área tende a ser o contêiner principal da página,
+                // não um carrossel pequeno no meio dela
                 if (no.isScrollable) {
                     val c = caixaDe(no)
                     val area = (c.dir - c.esq).toLong() * (c.baixo - c.topo).toLong()
@@ -97,13 +98,13 @@ object Scanner {
                     val descricao = no.contentDescription?.toString()?.takeIf { it.isNotBlank() }
                     val viewId = no.viewIdResourceName
                     val caixa = caixaDe(no)
-                    // password: the text is NEVER read; a hint shown as text doesn't count either
+                    // senha: o texto NUNCA é lido; hint mostrado como texto também não conta
                     val texto = when {
                         senha -> null
                         no.isShowingHintText -> null
                         else -> no.text?.toString()
                     }
-                    // labeledBy: the label the page's AUTHOR declared for this field
+                    // labeledBy: o rótulo que o AUTOR da página declarou para este campo
                     val noRotulo = no.labeledBy
                     val labeledBy = noRotulo?.let {
                         it.text?.toString()?.takeIf { t -> t.isNotBlank() }
@@ -127,9 +128,9 @@ object Scanner {
                     nos[campo.chave] = no
                 } else {
                     val t = no.text?.toString()
-                    // keeps feeding the label candidates BEFORE classifying: a checkbox
-                    // usually carries its own text, and it already served as a label for
-                    // its neighbors. Touching this would be a silent regression.
+                    // continua alimentando os candidatos a rótulo ANTES de classificar:
+                    // um checkbox costuma carregar o próprio texto, e ele já servia de
+                    // rótulo para os vizinhos. Mexer nisso seria regressão silenciosa.
                     if (!t.isNullOrBlank()) textos.add(t to caixaDe(no))
                     tipoDeEscolha(no)?.let { tipo ->
                         val e = Choice(
@@ -139,12 +140,11 @@ object Scanner {
                             viewId = no.viewIdResourceName,
                             caixa = caixaDe(no),
                             dentroDeWebView = ehWeb,
-                            // ACTION_CLICK requires isClickable; a radio inside a <label>
-                            // sometimes arrives not clickable and the parent is what responds.
+                            // ACTION_CLICK exige isClickable; um radio dentro de <label>
+                            // às vezes chega não clicável e quem responde é o pai.
                             clicavel = no.isClickable || no.parent?.isClickable == true,
-                            // already checked (by the person or by the site's default)
-                            // leaves the loop with no action: clicking here would UNCHECK
-                            // what they chose.
+                            // já marcada (pela pessoa ou pelo padrão do site) sai do laço
+                            // sem ação: clicar aqui DESMARCARIA o que ela escolheu.
                             marcada = no.isChecked,
                         )
                         escolhasBrutas.add(e)
@@ -165,20 +165,10 @@ object Scanner {
                 hintRepetidoNaTela = it.hint?.trim() in hintsRepetidos,
             )
         }
-        // a choice with no text of its own inherits the geometric neighbor, same ladder as the editables
-        val rotulosDeOpcao = escolhasBrutas.mapNotNull { it.rotulo?.let(Matcher::normalizar) }.toSet()
-        val escolhas = escolhasBrutas.map {
-            val comRotulo =
-                if (it.rotulo != null) it
-                else it.copy(rotulo = Labeler.vizinhoMaisProximo(it.caixa, textos)?.texto)
-            comRotulo.copy(
-                pergunta = Labeler.perguntaAcima(it.caixa, textos, rotulosDeOpcao),
-            )
-        }
-        // the fingerprint includes POSITION (caixa.topo) on purpose: scrolling half a
-        // screen keeps the same fields in the tree, just higher up. Without position,
-        // "scrolled half a screen" would read as "nothing changed" and the loop would die
-        // before the end of the form.
+        val escolhas = resolverEscolhas(escolhasBrutas, textos)
+        // a assinatura inclui a POSIÇÃO (caixa.topo) de propósito: rolar meia tela mantém os
+        // mesmos campos na árvore, só que mais acima. Sem a posição, "rolou meia tela" seria
+        // lido como "nada mudou" e o laço morreria antes do fim do formulário.
         val assinatura = buildString {
             append(visitados).append('#')
             campos.forEach { append(it.chave).append(':').append(it.caixa.topo).append(',') }
@@ -189,9 +179,31 @@ object Scanner {
     }
 
     /**
-     * STRUCTURAL label in WebView: the <label> usually becomes a sibling node of the
-     * <input> in the same parent. Walks the preceding siblings, from closest to
-     * farthest, and grabs the first with text. No geometry, so it survives tight layouts.
+     * Turns raw Choice census entries into decidable ones, pure and JVM-testable (no
+     * AccessibilityNodeInfo involved): fills `rotulo` with the OPTION text to the right of
+     * the input (Labeler.rotuloADireita), and `pergunta` with the group's question above it
+     * (Labeler.perguntaAcima). This split is the fix for the bug measured on device 09/12:
+     * the old code filled `rotulo` from vizinhoMaisProximo, which accepts text above OR to
+     * the left without telling the two roles apart, so the question above (closer than any
+     * option) always won and `rotulo` ended up holding the question instead of the answer.
+     * A radio with no text to its right gets `rotulo = null` and stays undecided; falling
+     * back to the text above would just reintroduce the same bug.
+     */
+    fun resolverEscolhas(brutas: List<Choice>, textos: List<Pair<String, Box>>): List<Choice> {
+        val comRotulo = brutas.map {
+            if (it.rotulo != null) it
+            else it.copy(rotulo = Labeler.rotuloADireita(it.caixa, textos)?.texto)
+        }
+        val rotulosDeOpcao = comRotulo.mapNotNull { it.rotulo?.let(Matcher::normalizar) }.toSet()
+        return comRotulo.map {
+            it.copy(pergunta = Labeler.perguntaAcima(it.caixa, textos, rotulosDeOpcao))
+        }
+    }
+
+    /**
+     * Rótulo ESTRUTURAL em WebView: o <label> costuma virar nó irmão do <input> no mesmo
+     * pai. Anda dos irmãos anteriores, do mais próximo para o mais longe, e pega o
+     * primeiro com texto — sem geometria, então sobrevive a layout apertado.
      */
     private fun rotuloIrmao(no: AccessibilityNodeInfo): String? {
         val pai = no.parent ?: return null
@@ -205,7 +217,7 @@ object Scanner {
         if (indice <= 0) return null
         for (i in indice - 1 downTo 0) {
             val irmao = pai.getChild(i) ?: continue
-            if (irmao.isEditable) continue // another field isn't a label
+            if (irmao.isEditable) continue // outro campo não é rótulo
             val t = irmao.text?.toString()?.takeIf { it.isNotBlank() }
                 ?: irmao.contentDescription?.toString()?.takeIf { it.isNotBlank() }
             if (t != null) return t.trim()
@@ -214,10 +226,10 @@ object Scanner {
     }
 
     /**
-     * A field's stable identity between the scan and the text events that arrive later.
-     * viewId > hint > description > box; the box is the worst signal because it changes
-     * when the keyboard opens and the screen scrolls, which is why the Engine has the 2nd
-     * defense of dedupe by label+text for a field seen again after scrolling.
+     * Identidade estável de um campo entre a varredura e os eventos de texto que chegam
+     * depois. viewId > hint > descrição > caixa; a caixa é o pior sinal porque muda
+     * quando o teclado abre e a tela rola — por isso o Engine tem a 2ª defesa de dedupe
+     * por rótulo+texto para o campo re-visto depois da rolagem.
      */
     fun chaveEstavel(viewId: String?, hint: String?, descricao: String?, caixa: Box): String =
         viewId?.takeIf { it.isNotBlank() }

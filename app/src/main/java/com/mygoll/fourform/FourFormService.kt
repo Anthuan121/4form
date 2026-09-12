@@ -289,10 +289,15 @@ class FourFormService : AccessibilityService() {
                         ?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
                     if (ok) {
                         cliquesFeitos++
-                        escolhas[e.chave] = e.copy(marcada = true)
+                        escolhas[e.chave] = e.copy(marcada = true, origemDecisao = "perfil")
                     } else {
                         cliquesFalhos++
+                        escolhas[e.chave] = e.copy(origemDecisao = "perfil")
                     }
+                } else {
+                    // Camada 2 (brief 257) tenta de novo mais tarde, em grupo, quando a
+                    // rodada acabar: por ora fica registrado que nem o perfil resolveu.
+                    escolhas[e.chave] = e.copy(origemDecisao = "nenhum")
                 }
                 // ⛔ Sem else: não marcar NÃO interrompe e não pergunta nada. O laço segue.
                 m.campoTratado(e.chave)
@@ -463,6 +468,7 @@ class FourFormService : AccessibilityService() {
             pendentes = abertos.size,
         )
         consultarLlm(s)
+        consultarLlmEscolhas(s)
     }
 
     /**
@@ -566,6 +572,47 @@ class FourFormService : AccessibilityService() {
                     val confianca = (veredito as? Llm.Veredito.Responder)?.sugestao?.confianca
                     llmDiag[reg.campo.chave] = Llm.LlmDiagnostico(desfecho, confianca, latencia)
                     painel?.atualizar()
+                    gravarDiagnostico(s, voltas = null, aprendidos = 0)
+                }
+            }.start()
+        }
+    }
+
+    /**
+     * Camada 2 de escolha (brief 257): quando o perfil sozinho não decidiu uma opção mas a
+     * pergunta do grupo é legível, a IA entra com a LISTA FECHADA de opções daquele grupo.
+     * Mesmo desenho da IA de texto (consultarLlm): thread por grupo, aplicação serializada
+     * no handler, e a régua "se vai marcar, marcou e o jogo segue" continua valendo, então
+     * isto roda DEPOIS da rodada terminar, nunca bloqueando o laço.
+     */
+    private fun consultarLlmEscolhas(s: Session) {
+        val grupos = Llm.agruparPorPergunta(escolhas.values.toList())
+        if (grupos.isEmpty()) return
+        val linhas = Llm.linhasDePerfil(Store.perfilTexto(this), Store.aprendidos(this))
+        if (linhas.isEmpty()) return // sem perfil não existe âncora possível
+        for ((pergunta, grupo) in grupos) {
+            val opcoes = grupo.mapNotNull { it.rotulo }.distinct()
+            if (opcoes.isEmpty()) continue
+            Thread {
+                if (sessao !== s) return@Thread
+                val resultado = runCatching { LlmBridge.chamar(Llm.corpoEscolha(pergunta, opcoes, linhas)) }
+                val veredito = Llm.avaliarEscolha(resultado, opcoes, linhas)
+                handler.post {
+                    if (sessao !== s) return@post
+                    when (veredito) {
+                        is Llm.VereditoEscolha.Marcar -> {
+                            val alvo = grupo.firstOrNull { it.rotulo?.trim() == veredito.opcao }
+                            val ok = alvo != null &&
+                                nosEscolha[alvo.chave]?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
+                            if (ok && alvo != null) {
+                                cliquesFeitos++
+                                escolhas[alvo.chave] = alvo.copy(marcada = true, origemDecisao = "ia")
+                            } else {
+                                if (alvo != null) cliquesFalhos++
+                            }
+                        }
+                        is Llm.VereditoEscolha.NaoMarcar -> Unit // segue "nenhum": nada a fazer
+                    }
                     gravarDiagnostico(s, voltas = null, aprendidos = 0)
                 }
             }.start()

@@ -35,6 +35,15 @@ data class Choice(
      * because no profile contains "Yes". His finding on 09/12, filling out a real job form.
      */
     val pergunta: String? = null,
+    /**
+     * Where the click decision came from, filled AFTER decidirEscolha runs (null while the
+     * choice is still just census): "perfil" when a profile line (or something learned)
+     * settled it, "ia" when Camada 2 matched a literal option from the model, "nenhum" when
+     * neither did. Diagnostics needs this because zero clicks has three different causes
+     * (no label, label but no profile match, IA discarded) and, before this field, all three
+     * looked identical from outside: that ambiguity is what stalled this bug for a full day.
+     */
+    val origemDecisao: String? = null,
 ) {
     /** Identity across scans: the same radio reappears after scrolling with a different box. */
     val chave: String get() = "$tipo|${viewId ?: ""}|${rotulo ?: caixa.topo}"
