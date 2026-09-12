@@ -8,7 +8,6 @@ import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.WindowManager
 import android.widget.Button
-import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -24,64 +23,61 @@ import com.mygoll.fourform.agent.Llm
 import com.mygoll.fourform.agent.Session
 
 /**
- * THE RESULT ON SCREEN (brief 242, part B · Anthuan's reversal on 09/09: "it has to show
- * up on screen so you know what it filled... even if it's just a modal"). Appears AFTER
- * the scan, when there's no more active field to cover · that's why it doesn't clash with
- * the 241 guideline, which measured the panel DURING the fill.
+ * O RESULTADO NA TELA (brief 242, parte B · reversão do Anthuan em 09/09: "tem que
+ * aparecer na tela pra saber o que ele preencheu... nem que seja um modal"). Aparece
+ * DEPOIS da varredura, quando não há mais campo ativo para tapar · por isso não briga
+ * com a régua do 241, que mediu o painel DURANTE o preenchimento.
  *
- * SOLID surface (the one 241 approved, 11.89:1 contrast), via TYPE_ACCESSIBILITY_OVERLAY:
- * it's the window the accessibility service itself can draw WITHOUT a new permission ·
- * SYSTEM_ALERT_WINDOW is not requested anywhere in this app. The area outside the card is
- * pure transparent (it only catches the tap-outside to close), not a reading surface.
+ * Superfície SÓLIDA (a que o 241 aprovou, contraste 11,89:1), via TYPE_ACCESSIBILITY_OVERLAY:
+ * é a janela que o próprio serviço de acessibilidade pode desenhar SEM permissão nova ·
+ * SYSTEM_ALERT_WINDOW não é pedido em lugar nenhum deste app. A área fora do cartão é
+ * transparente pura (só pega o toque-fora para fechar), não é superfície de leitura.
  *
- * Interactive, which was the request: undo per filled item, type the value right there
- * per open item. Closes via button and via tap-outside; never traps the person on the screen.
+ * Interativo, que é o pedido: desfazer por item preenchido, digitar o valor ali mesmo
+ * por item aberto. Fecha por botão e por toque fora; nunca prende a pessoa na tela.
  *
- * 🎓 VISUAL (09/12): this card is the expansion of the bubble from the design approved in
- * HTML, and speaks the same language as the screens via Ui.kt · which became Context
- * extensions specifically so the AccessibilityService could use them. The grammar: amber
- * dot = DECLARED gap (not an error, it's category 4 of his rule: a question the resume
- * doesn't answer, and the app gets credit for saying so instead of guessing), gold ⌁
- * anchor = provenance, AI card with a gold outline = suggestion, not fact.
+ * 🎓 VISUAL (12/09): este cartão é a expansão da bolha do desenho aprovado em HTML, e fala
+ * a mesma língua das telas via Ui.kt · que virou extensions de Context justamente para o
+ * AccessibilityService poder usá-las. A gramática: ponto âmbar = lacuna DECLARADA (não é
+ * erro, é a categoria 4 da régua dele: pergunta que o currículo não responde, e o app tem
+ * o mérito de avisar em vez de chutar), âncora ⌁ dourada = procedência, cartão da IA com
+ * contorno dourado = sugestão, não fato.
  */
 class Panel(
     private val service: AccessibilityService,
     private val registros: () -> List<Session.Registro>,
     private val aoDesfazer: (String) -> Boolean,
-    private val aoEscrever: (String, String) -> Boolean,
     private val aoFechar: () -> Unit,
-    // brief 245: the AI suggestion per field key (null = none), whether it's still
-    // querying, and the two outcomes that don't go through the regular EditText
+    // brief 245: the AI suggestion per field key (null = none) and whether it's still
+    // asking. brief 255: the panel stopped accepting typed input (item 2), so the only
+    // action per suggestion is USE (item 3) · Edit/Discard left together with the typing.
     private val sugestao: (String) -> Llm.Sugestao? = { null },
     private val consultando: (String) -> Boolean = { false },
     private val aoUsar: (String) -> Boolean = { false },
-    private val aoDescartar: (String) -> Unit = {},
-    // this round's census: how many CHOICE fields the app saw go by that it still can't
-    // operate. On screen because measuring it from the dump requires uploading the file
-    // and opening it on a computer; the number that changes the decision has to show up
-    // where the decision happens.
+    // censo desta rodada: quantos campos de ESCOLHA o app viu passar e ainda não opera.
+    // Na tela porque medir no dump exige subir o arquivo e abrir no computador; o número
+    // que muda decisão tem que aparecer onde a decisão acontece.
     private val escolhasVistas: () -> Int = { 0 },
-    // this round's choices and clicking on them. ⛔ The app does NOT check them on its own
-    // on purpose: "UX/UI Specialist" or "Spontaneous application" is intent, not profile
-    // data, and guessing here is exactly the invention that competitors do and the product
-    // promises not to do. The app offers and the person decides: it's the "clear and
-    // controllable" from the rubric.
+    // as escolhas desta rodada e o clique nelas. ⛔ O app NÃO marca sozinho de propósito:
+    // "Especialista UX/UI" ou "Candidatura espontânea" é intenção, não dado de perfil, e
+    // chutar aqui é exatamente a invenção que os concorrentes fazem e o produto promete não
+    // fazer. O app oferece e a pessoa decide: é o "clear and controllable" da rubrica.
     private val escolhasLista: () -> List<Choice> = { emptyList() },
     private val aoMarcar: (String) -> Boolean = { false },
     /**
-     * WHAT'S HAPPENING RIGHT NOW, one line per scan, plus the reason it stopped once it
-     * has. Requested by him on 09/12 after watching the bubble spin endlessly: "my
-     * intention was, when I tapped the bubble, to SEE WHAT'S HAPPENING".
-     *
-     * 🎓 Why this is worth more than a log file: the dump only helps afterward, on a
-     * computer. Whoever has the form open needs the cause RIGHT NOW, and the cause is
-     * what decides whether they tap again, scroll by hand, or give up on the screen.
+     * brief 255, fixing 245: the step-by-step scan log ("scan 1: scrollable ...") had
+     * become developer noise on the user's screen · he asked to SEE what was happening
+     * and the app handed him code. Collection keeps going to the diagnostics file
+     * (FourFormService still writes `laco` there); only the EXCEPTION he approved stays
+     * here: when the round ended in FAILURE (watchdog fired, screen stopped scrolling),
+     * one plain-language line, no jargon, no node number. `null` when there was no
+     * failure · most rounds show nothing here.
      */
-    private val estadoAoVivo: () -> List<String> = { emptyList() },
+    private val linhaDeFalha: () -> String? = { null },
     /**
-     * Run again on WHAT'S LEFT, without starting over. Requested by him on 09/12, after
-     * seeing the loop stop midway and having to tap the accessibility button again: the
-     * round that failed midway ⛔ cannot cost all the work already done.
+     * Rodar de novo NO QUE FALTOU, sem recomeçar. Pedido dele em 12/09, depois de ver o laço
+     * parar no meio e ter que apertar o botão de acessibilidade outra vez: a rodada que
+     * falhou no meio ⛔ não pode custar todo o trabalho já feito.
      */
     private val aoTentarDeNovo: () -> Unit = {},
 ) {
@@ -91,42 +87,36 @@ class Panel(
     private lateinit var lista: LinearLayout
     private lateinit var titulo: TextView
 
-    // fields where the person tapped "Edit" on the AI suggestion: the card turns into a
-    // pre-filled EditText and the write follows the regular path (which learns the correction)
-    private val emEdicao = mutableSetOf<String>()
-
     private fun cor(id: Int): Int = service.resources.getColor(id, null)
     private fun dp(v: Int): Int = service.dp(v)
 
     fun mostrar() {
         if (raiz != null) return
         val root = FrameLayout(service)
-        root.setOnClickListener { fechar() } // tap outside the card closes it
+        root.setOnClickListener { fechar() } // toque fora do cartão fecha
 
         val cartao = LinearLayout(service).apply {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable().apply {
-                setColor(cor(R.color.superficie_recipiente_alto)) // solid, no alpha
-                // SHORT radius scale, his order on 09/12: "almost square, but still
-                // rounded". Family 14/10/8/6/4; a large container uses 10. A large radius
-                // reads as soft and friendly (a consumer app), a short radius reads as
-                // precise, and that's what talks to Cosmic Black and Celestial Gold,
-                // which are instrument colors.
+                setColor(cor(R.color.superficie_recipiente_alto)) // sólida, sem alfa
+                // Escala de raio CURTO, ordem dele em 12/09: "quase quadrada, mas ainda
+                // arredondada". Família 14/10/8/6/4; contêiner grande usa 10. Raio grande lê
+                // como macio e amigável (app de consumo), raio curto lê como preciso, e é o
+                // que conversa com Cosmic Black e Celestial Gold, que são cor de instrumento.
                 cornerRadii = floatArrayOf(
                     dp(10).toFloat(), dp(10).toFloat(), dp(10).toFloat(), dp(10).toFloat(),
                     0f, 0f, 0f, 0f,
                 )
-                // outline stroke on top: in the design the card is born from the bubble and
-                // separates from the other page's content with a 1px border, not a shadow
-                // (an overlay has no elevation)
+                // fio de contorno em cima: no desenho o cartão nasce da bolha e se separa da
+                // página alheia por uma borda de 1px, não por sombra (overlay não tem elevação)
                 setStroke(dp(1), cor(R.color.contorno))
             }
             setPadding(dp(20), dp(16), dp(20), dp(16))
-            isClickable = true // swallows the touch so it doesn't leak to root and close
+            isClickable = true // engole o toque para não vazar pro root e fechar
         }
 
-        // header in the design's vocabulary: gold overline saying WHO's speaking
-        // ("4Form · on this page") and below it the round's tally as the title
+        // cabeçalho no vocabulário do desenho: sobrescrita dourada dizendo QUEM fala
+        // ("Preenche · nesta página") e embaixo o placar da rodada como título
         cartao.addView(service.kicker("4Form · on this page"))
         titulo = TextView(service).apply {
             textSize = 20f
@@ -140,8 +130,8 @@ class Panel(
         val rolo = ScrollView(service).apply { addView(lista) }
         cartao.addView(rolo, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
 
-        // TRY AGAIN gets the gold: when the loop stopped midway, it IS the screen's action.
-        // Close stays secondary on purpose: closing isn't THE action, it's the exit.
+        // TENTAR DE NOVO leva o dourado: quando o laço parou no meio, ela É a ação da tela.
+        // Fechar fica em secundário de propósito: fechar não é A ação, é a saída.
         cartao.addView(
             service.botaoPrimario("Try again on what's left") {
                 fechar()
@@ -150,7 +140,7 @@ class Panel(
         )
         cartao.addView(service.botaoSecundario("Close") { fechar() })
 
-        // bottom half of the screen: the work is already done, there's no focused field to cover
+        // metade de baixo da tela: o trabalho já terminou, não há campo focado para cobrir
         val altura = (service.resources.displayMetrics.heightPixels * 0.55f).toInt()
         root.addView(cartao, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, altura, Gravity.BOTTOM))
 
@@ -158,12 +148,12 @@ class Panel(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            0, // focusable window: the "type right there" EditText needs the keyboard
+            0, // focusable window: keeps the overlay's default behavior across reopenings
             PixelFormat.TRANSLUCENT,
         ).apply {
             softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
         }
-        // if the window fails on this device, the demo degrades to a notice · never a crash
+        // se a janela falhar neste aparelho, a demo degrada para aviso · nunca para crash
         val deu = runCatching { wm.addView(root, lp) }
         if (deu.isFailure) {
             Notices.texto(service, "The panel couldn't open: ${deu.exceptionOrNull()?.message}")
@@ -176,7 +166,7 @@ class Panel(
 
     fun visivel(): Boolean = raiz != null
 
-    /** Rebuilds the list when something changes externally (an AI suggestion arrives, for example). */
+    /** Recompõe a lista quando algo muda por fora (sugestão da IA chegou, por exemplo). */
     fun atualizar() {
         if (raiz != null) montar()
     }
@@ -188,7 +178,7 @@ class Panel(
         aoFechar()
     }
 
-    /** Rebuilds the list from the session's current state (called after undo/write). */
+    /** Recompõe a lista do estado atual da sessão (chamado após desfazer/escrever). */
     private fun montar() {
         val regs = registros()
         val preenchidos = regs.filter { it.acao == "preencheu" }
@@ -200,71 +190,48 @@ class Panel(
         }
         lista.removeAllViews()
 
-        // THE LOOP'S STATE comes FIRST when the round hasn't ended yet: at that moment
-        // his question isn't "what did you fill in", it's "what are you doing".
-        val passos = estadoAoVivo()
-        if (passos.isNotEmpty()) {
-            lista.addView(secao("What's happening"))
-            for (linhaPasso in passos) {
-                lista.addView(texto(linhaPasso, R.color.texto_secundario))
-            }
+        // brief 255: only the FAILURE line comes first, plain, no jargon. The
+        // step-by-step log that used to live here is gone for good (still in the diagnostics file).
+        linhaDeFalha()?.let { falha ->
+            lista.addView(texto(falha, R.color.erro))
             lista.addView(espaco(10))
         }
 
-        // ⛔ WHAT WAS FILLED DOES NOT GO IN THE LIST (his rule, 09/10, testing on
-        // Greenhouse): "no need for that caution; if I want to undo it I'll just go there
-        // and write in the field". Confirming already-done work is pure friction · in his
-        // test the panel showed 9 items when only 2 needed a decision.
+        // ⛔ O QUE FOI PREENCHIDO NÃO ENTRA NA LISTA (régua dele, 10/09, testando no
+        // Greenhouse): "não precisa ter essa cautela; se eu quiser desfazer eu vou lá e
+        // escrevo no campo". Confirmar trabalho já feito é atrito puro · no teste dele o
+        // painel trazia 9 itens quando só 2 precisavam de decisão.
         //
-        // 🎓 Why the count STAYS in the title: he needs to know HOW MANY were touched
-        // (that's what gives confidence the app acted), without having to approve one by
-        // one. And undo doesn't disappear from the product: the correction is made right
-        // in the field, and the app learns from it via TYPE_VIEW_TEXT_CHANGED · the same
-        // mechanism as the 3rd act.
+        // 🎓 Por que a contagem FICA no título: ele precisa saber QUANTOS foram tocados
+        // (é o que dá confiança de que o app agiu), sem ter que aprovar um por um. E o
+        // desfazer não some do produto: a correção é feita no próprio campo, e o app
+        // aprende dela pelo TYPE_VIEW_TEXT_CHANGED · o mesmo mecanismo do 3º ato.
+        // brief 255: exactly three states per open field, never typing in the panel.
+        // "no proposal" is already said by the line below (label + reason) · no button,
+        // because not typing here is what he asked: "if I'm going to type, I type in the form".
         if (abertos.isNotEmpty()) lista.addView(secao("Left for you"))
         for (r in abertos) {
-            // AMBER dot, not ember: a declared gap is a product virtue, not a failure.
-            // The reason comes in as a detail so the sentence explains why at a glance.
+            // ponto ÂMBAR, não brasa: lacuna declarada é virtude do produto, não falha.
+            // O motivo entra como detalhe pra frase dizer o porquê no mesmo olhar.
             lista.addView(
                 service.itemComPonto(r.rotulo ?: "unnamed field", r.motivo ?: "", R.color.aviso)
             )
             val chave = r.campo.chave
             val sug = sugestao(chave)
-            if (sug != null && chave !in emEdicao) {
-                lista.addView(cartaoIa(chave, sug))
-                continue
+            when {
+                sug != null -> lista.addView(cartaoIa(chave, sug))
+                consultando(chave) -> lista.addView(texto("asking the AI…", R.color.texto_secundario))
+                // else: no proposal. The itemComPonto line above already says which field
+                // it is and why it's blank · information, not action.
             }
-            if (consultando(chave)) {
-                lista.addView(texto("asking the AI…", R.color.texto_secundario))
-            }
-            val caixa = campoTexto("type the value and tap Write").apply {
-                // "Edit" from the suggestion: starts from the AI's text; whatever comes out of here is the person's
-                if (chave in emEdicao && sug != null) setText(sug.resposta)
-            }
-            lista.addView(caixa)
-            // gold and COMPACT button: it's a per-item action, not the whole screen's
-            // action · gold as a full-width bar here would turn into a wall of gold for
-            // every open field
-            lista.addView(linhaDeBotoes(botaoCompacto("Write in field", primario = true) {
-                val v = caixa.text.toString()
-                if (v.isNotBlank()) {
-                    if (aoEscrever(chave, v)) {
-                        emEdicao.remove(chave)
-                        montar()
-                    } else {
-                        caixa.error = "couldn't write: did the field leave the screen?"
-                    }
-                }
-            }))
         }
 
-        // ⛔ A CHOICE DOES NOT BECOME A BUTTON IN THE PANEL. His rule, 09/12, testing on
-        // the bus: "if it's not going to check it, no need to show it on screen, that
-        // gets in the way. If it's going to check it, it checks it and the game moves on;
-        // if not, it moves to the next field". A list of buttons asking for a decision is
-        // the friction the panel exists to remove · the same reason filled fields don't
-        // go in the list either. What the app didn't resolve on its own becomes ONE
-        // summary line, with no dangling action.
+        // ⛔ ESCOLHA NÃO VIRA BOTÃO NO PAINEL. Régua dele, 12/09, testando no ônibus: "se
+        // ele não vai marcar, não precisa mostrar na tela, isso trava. Se vai marcar,
+        // marcou e o jogo segue; se não, segue pro próximo campo". Uma lista de botões
+        // pedindo decisão é o atrito que o painel existe pra remover · o mesmo motivo pelo
+        // qual o preenchido já não entra na lista. O que o app não resolveu sozinho vira
+        // UMA linha de resumo, sem ação pendurada.
         val naoMarcadas = escolhasLista().count { !it.marcada }
         if (naoMarcadas > 0) {
             lista.addView(
@@ -278,28 +245,31 @@ class Panel(
     }
 
     /**
-     * The AI response card (brief 245): visually DISTINCT from the rest because it's a
-     * SUGGESTION, not a fact · background one step darker and outline in the primary
-     * color, which throughout the app marks "the agent is speaking here". Shows the
-     * response, the ⌁ ANCHOR of where it came from (the "I don't make things up about
-     * you" promise is proven with provenance, not marketing copy), and the confidence ·
-     * plus three outcomes: Use / Edit / Discard. ⛔ Nothing here writes to the field
-     * without the person's tap.
+     * The AI answer card (brief 245, buttons cut down to just one in 255): visually
+     * DISTINCT from the rest because it's a SUGGESTION, not a fact · background one step
+     * down and outline in the primary color, which throughout the app marks "the agent is
+     * speaking here". Shows the answer, the ANCHOR ⌁ it came from (the promise "it does
+     * not invent things about you" is proven by provenance, not marketing copy) and the
+     * confidence.
+     *
+     * ⛔ Edit and Discard are gone (brief 255): "typing inside the modal doesn't make
+     * sense, if I'm going to type I type in the form". USE is the only action on the
+     * card, and on the whole panel besides closing and "try again" · it writes to the
+     * form field and the card leaves the list.
      */
     private fun cartaoIa(chave: String, sug: Llm.Sugestao): LinearLayout = LinearLayout(service).apply {
         orientation = LinearLayout.VERTICAL
         background = GradientDrawable().apply {
             setColor(cor(R.color.superficie_recipiente))
             setStroke(dp(1), cor(R.color.primaria))
-            cornerRadius = dp(8).toFloat() // card, step 8 of the short radius scale
+            cornerRadius = dp(8).toFloat() // card, degrau 8 da escala de raio curto
         }
         setPadding(dp(12), dp(10), dp(12), dp(10))
         layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
         ).apply { topMargin = dp(6); bottomMargin = dp(4) }
-        // confidence arrives in Portuguese (JSON contract with the LLM, see Llm.kt):
-        // translated only for display, without touching the data contract or the tests
-        // that verify it.
+        // confianca chega em pt (contrato do JSON com a LLM, ver Llm.kt): traduzido só na
+        // exibição, sem mexer no contrato de dados nem nos testes que o verificam.
         val confiancaEmIngles = when (sug.confianca) {
             "alta" -> "high"
             "media" -> "medium"
@@ -312,27 +282,19 @@ class Panel(
             textSize = 15f
             setTextColor(cor(R.color.texto))
         })
-        // the anchor with the gold ⌁ glyph: the SAME provenance piece as the other screens
+        // a âncora com o glifo ⌁ dourado: a MESMA peça de procedência das outras telas
         addView(service.ancora(sug.ancora))
         addView(linhaDeBotoes(
             botaoCompacto("Use", primario = true) {
                 if (aoUsar(chave)) montar()
                 else Notices.texto(service, "couldn't write: did the field leave the screen?")
             },
-            botaoCompacto("Edit", primario = false) {
-                emEdicao.add(chave)
-                montar()
-            },
-            botaoCompacto("Discard", primario = false) {
-                aoDescartar(chave)
-                montar()
-            },
         ))
     }
 
-    // ── local pieces: only what the overlay needs and the screens don't have ────────────
+    // ── peças locais: só o que o overlay precisa e as telas não têm ────────────────────
 
-    /** List section header: the same gold overline from the design, with breathing room. */
+    /** Cabeçalho de seção da lista: a mesma sobrescrita dourada do desenho, com respiro. */
     private fun secao(rotulo: String): TextView = service.kicker(rotulo).apply {
         setPadding(0, dp(6), 0, dp(4))
     }
@@ -349,32 +311,9 @@ class Panel(
     }
 
     /**
-     * System text field: recessed background (one step darker than the card, as in the
-     * design), outline stroke, and radius 6, the field step in the 14/10/8/6/4 scale.
-     * 🎓 The standard Android EditText only shows the bottom line, which disappears on a
-     * dark surface; the filled background is what makes the field feel like a PLACE to write.
-     */
-    private fun campoTexto(dica: String): EditText = EditText(service).apply {
-        hint = dica
-        textSize = 14f
-        setTextColor(cor(R.color.texto))
-        setHintTextColor(cor(R.color.texto_secundario))
-        background = GradientDrawable().apply {
-            setColor(cor(R.color.superficie_recipiente))
-            setStroke(dp(1), cor(R.color.contorno))
-            cornerRadius = dp(6).toFloat()
-        }
-        setPadding(dp(12), dp(10), dp(12), dp(10))
-        layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
-        ).apply { topMargin = dp(6) }
-    }
-
-    /**
-     * Compact button for a PER-ITEM action (Use, Edit, Write to field): same language as
-     * the buttons in Ui.kt (solid gold = acts, outline = supporting, radius 6) but at line
-     * size, because in a panel with several open fields each action is local, not the
-     * whole screen's.
+     * Compact button for a PER-ITEM action (today only Use): same language as the
+     * buttons in Ui.kt (solid gold = act, outline = secondary, radius 6) but line-sized,
+     * because in a panel with several open fields each action is local, not for the whole screen.
      */
     private fun botaoCompacto(t: String, primario: Boolean, aoTocar: () -> Unit): Button =
         Button(service).apply {
@@ -383,7 +322,7 @@ class Panel(
             textSize = 13f
             setTypeface(typeface, Typeface.BOLD)
             minHeight = 0; minimumHeight = 0; minWidth = 0; minimumWidth = 0
-            stateListAnimator = null // no elevation shadow: flat overlay, as in the design
+            stateListAnimator = null // sem sombra de elevação: overlay plano, como o desenho
             if (primario) {
                 setTextColor(cor(R.color.sobre_primaria))
                 background = GradientDrawable().apply {
@@ -402,7 +341,7 @@ class Panel(
             setOnClickListener { aoTocar() }
         }
 
-    /** Horizontal row of compact buttons, with breathing room between them. */
+    /** Fileira horizontal de botões compactos, com o respiro entre eles. */
     private fun linhaDeBotoes(vararg botoes: Button): LinearLayout =
         LinearLayout(service).apply {
             orientation = LinearLayout.HORIZONTAL
