@@ -476,7 +476,15 @@ class FourFormService : AccessibilityService() {
         // ERRO ⛔ não é o mesmo que "sobrou campo": parada por falha do laço é problema DO
         // APP, e a bolha precisa dizer isso em vermelho. Pedido dele em 12/09: "se houver
         // qualquer erro ou qualquer tipo de informação, ele deveria me notificar na bolinha".
-        val falhou = motivo.contains("stopped responding") || motivo.contains("doesn't move")
+        // ⛔ "scrolled all the way: the screen doesn't move anymore" é o fim NORMAL de um
+        // formulário: rolou até o fim e acabou. Ele casava com "doesn't move" e virava ERRO,
+        // então TODA rodada bem-sucedida acendia a bolha vermelha com "!". Medido nos 5 dumps
+        // dele de 12/09: os cinco pararam assim, os cinco acusaram erro.
+        // 🎓 Por que isso importa mais que um detalhe visual: o vermelho é o canal de "algo
+        // quebrou". Gasto em toda rodada, ele deixa de significar qualquer coisa — e o produto
+        // passa a depor contra si mesmo justo quando funcionou. Falha agora é só o watchdog:
+        // o laço parar de responder é a única coisa que é, de fato, problema DO APP.
+        val falhou = motivo.contains("stopped responding")
         bolha?.estado(
             when {
                 falhou -> Bubble.Estado.ERRO
@@ -548,8 +556,6 @@ class FourFormService : AccessibilityService() {
     private fun linhaHumanaDaFalha(motivo: String): String? = when {
         motivo.contains("stopped responding") ->
             "Something got stuck while filling the form. Try again, or scroll down yourself and tap the bubble."
-        motivo.contains("doesn't move") ->
-            "I couldn't scroll any further on this screen. Scroll down yourself, then tap the bubble to try again."
         else -> null
     }
 
