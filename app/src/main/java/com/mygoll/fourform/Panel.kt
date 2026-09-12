@@ -218,18 +218,25 @@ class Panel(
         // aprende dela pelo TYPE_VIEW_TEXT_CHANGED · o mesmo mecanismo do 3º ato.
         if (abertos.isNotEmpty()) lista.addView(secao("Left for you"))
         for (r in abertos) {
-            // ponto ÂMBAR, não brasa: lacuna declarada é virtude do produto, não falha.
-            // O motivo entra como detalhe pra frase dizer o porquê no mesmo olhar.
+            // brief 260: reserved fields (negotiation, sensitive identity, legal
+            // declaration) get the CONTORNO dot, never âmbar. Âmbar means "the résumé
+            // doesn't answer this" (category 4, a gap); reserved means "I won't answer
+            // this even when I could" (a boundary, not a gap) — same visual would tell
+            // the person the app failed to find something it never tried to find.
+            val corDoPonto = if (r.reservado) R.color.contorno else R.color.aviso
             lista.addView(
-                service.itemComPonto(r.rotulo ?: "unnamed field", r.motivo ?: "", R.color.aviso)
+                service.itemComPonto(r.rotulo ?: "unnamed field", r.motivo ?: "", corDoPonto)
             )
             val chave = r.campo.chave
-            val sug = sugestao(chave)
+            // reserved beats the AI too: no suggestion card and no "asking the AI…" line
+            // ever render here, even if the AI path upstream still answered — reserved
+            // is decided in the panel regardless of what came back.
+            val sug = if (r.reservado) null else sugestao(chave)
             if (sug != null && chave !in emEdicao) {
                 lista.addView(cartaoIa(chave, sug))
                 continue
             }
-            if (consultando(chave)) {
+            if (!r.reservado && consultando(chave)) {
                 lista.addView(texto("asking the AI…", R.color.texto_secundario))
             }
             val caixa = campoTexto("type the value and tap Write").apply {
