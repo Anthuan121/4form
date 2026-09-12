@@ -98,7 +98,10 @@ class Panel(
         val cartao = LinearLayout(service).apply {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable().apply {
-                setColor(cor(R.color.superficie_recipiente_alto)) // sólida, sem alfa
+                // solid, no alpha. superficie_recipiente, not the _alto step: the approved
+                // HTML draws this card in #10141D over the page, and using the lightest
+                // gray of the ladder here was one of the places the black got diluted.
+                setColor(cor(R.color.superficie_recipiente))
                 // Escala de raio CURTO, ordem dele em 12/09: "quase quadrada, mas ainda
                 // arredondada". Família 14/10/8/6/4; contêiner grande usa 10. Raio grande lê
                 // como macio e amigável (app de consumo), raio curto lê como preciso, e é o
@@ -214,7 +217,7 @@ class Panel(
             // brief 260: reserved fields (negotiation, sensitive identity, legal
             // declaration) get the CONTORNO dot, never âmbar. Âmbar means "the résumé
             // doesn't answer this" (category 4, a gap); reserved means "I won't answer
-            // this even when I could" (a boundary, not a gap) — same visual would tell
+            // this even when I could" (a boundary, not a gap) · same visual would tell
             // the person the app failed to find something it never tried to find.
             val corDoPonto = if (r.reservado) R.color.contorno else R.color.aviso
             lista.addView(
@@ -269,7 +272,9 @@ class Panel(
     private fun cartaoIa(chave: String, sug: Llm.Sugestao): LinearLayout = LinearLayout(service).apply {
         orientation = LinearLayout.VERTICAL
         background = GradientDrawable().apply {
-            setColor(cor(R.color.superficie_recipiente))
+            // one step UP from the panel surface (the HTML's nested-card tone), and the
+            // gold outline that throughout the app marks "the agent is speaking here"
+            setColor(cor(R.color.superficie_recipiente_alto))
             setStroke(dp(1), cor(R.color.primaria))
             cornerRadius = dp(8).toFloat() // card, degrau 8 da escala de raio curto
         }
@@ -340,8 +345,9 @@ class Panel(
                 }
             } else {
                 setTextColor(cor(R.color.texto))
+                // ghost, matching Ui.botaoSecundario: transparent body, quiet hairline
                 background = GradientDrawable().apply {
-                    setColor(cor(R.color.superficie_recipiente_alto))
+                    setColor(android.graphics.Color.TRANSPARENT)
                     setStroke(dp(1), cor(R.color.contorno))
                     cornerRadius = dp(6).toFloat()
                 }

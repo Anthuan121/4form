@@ -1,7 +1,15 @@
 package com.mygoll.fourform
 
 import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.ColorFilter
+import android.graphics.Paint
+import android.graphics.PixelFormat
+import android.graphics.RadialGradient
+import android.graphics.Shader
 import android.graphics.Typeface
+import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.text.SpannableString
 import android.text.Spanned
@@ -25,13 +33,63 @@ object Ui {
 
     fun Context.dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
-    fun Context.coluna(): Pair<ScrollView, LinearLayout> {
+    /**
+     * Screen column. [onirico] adds the approved design's dreamy background: a faint gold
+     * glow up top and a faint cool glow at the bottom, over the cosmic black. The
+     * diagnostics screen passes false on purpose: the design calls it the one raw screen
+     * ("here nobody is dreaming, they're debugging").
+     */
+    fun Context.coluna(onirico: Boolean = true): Pair<ScrollView, LinearLayout> {
         val col = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(20), dp(20), dp(20))
         }
-        val rolo = ScrollView(this).apply { addView(col) }
+        val rolo = ScrollView(this).apply {
+            addView(col)
+            isFillViewport = true
+            if (onirico) background = fundoOnirico()
+        }
         return rolo to col
+    }
+
+    /**
+     * The two radial glows from the approved HTML (telas-app 09/12): gold at ~10% alpha
+     * bleeding from the top right, a cool blue-gray at ~10% from the bottom left. They are
+     * background only; text never sits on a gradient (the design's rule: "gradiente sonha,
+     * tipografia ancora").
+     */
+    private fun Context.fundoOnirico(): Drawable = object : Drawable() {
+        private val tinta = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        override fun draw(canvas: Canvas) {
+            val b = bounds
+            if (b.width() <= 0 || b.height() <= 0) return
+            tinta.shader = null
+            tinta.color = cor(R.color.superficie)
+            canvas.drawRect(b, tinta)
+            val ouro = cor(R.color.primaria)
+            tinta.shader = RadialGradient(
+                b.width() * 0.8f, -b.height() * 0.1f, b.width() * 0.9f,
+                Color.argb(26, Color.red(ouro), Color.green(ouro), Color.blue(ouro)),
+                Color.argb(0, Color.red(ouro), Color.green(ouro), Color.blue(ouro)),
+                Shader.TileMode.CLAMP,
+            )
+            canvas.drawRect(b, tinta)
+            // the cool counterweight comes straight from the approved HTML: rgba(80,100,150,.10)
+            tinta.shader = RadialGradient(
+                b.width() * 0.1f, b.height() * 1.05f, b.width() * 0.7f,
+                Color.argb(26, 80, 100, 150),
+                Color.argb(0, 80, 100, 150),
+                Shader.TileMode.CLAMP,
+            )
+            canvas.drawRect(b, tinta)
+            tinta.shader = null
+        }
+
+        override fun setAlpha(alpha: Int) {}
+        override fun setColorFilter(colorFilter: ColorFilter?) {}
+        @Deprecated("Deprecated in Java")
+        override fun getOpacity(): Int = PixelFormat.OPAQUE
     }
 
     fun Context.titulo(texto: String): TextView = TextView(this).apply {
@@ -75,7 +133,10 @@ object Ui {
         orientation = LinearLayout.VERTICAL
         background = GradientDrawable().apply {
             setColor(cor(R.color.superficie_recipiente))
-            setStroke(dp(1), cor(R.color.contorno))
+            // hairline in the container tone, not in contorno: in the approved HTML the
+            // card border is decoration (#1F2532 over #10141D), nearly invisible. The
+            // light contorno made every card shout its outline and diluted the black.
+            setStroke(dp(1), cor(R.color.superficie_recipiente_alto))
             cornerRadius = dp(8).toFloat()
         }
         setPadding(dp(14), dp(14), dp(14), dp(14))
@@ -85,12 +146,16 @@ object Ui {
         layoutParams = lp
     }
 
-    /** Small uppercase overline: says which part of the app the person is in. */
+    /**
+     * Small uppercase overline: says which part of the app the person is in. Dim, not
+     * gold: in the approved HTML every kicker is ink-dim, and gold is saved for action
+     * and provenance. Gold kickers everywhere was where the app's proportion broke.
+     */
     fun Context.kicker(texto: String): TextView = TextView(this).apply {
         text = texto.uppercase()
         textSize = 11f
         letterSpacing = 0.12f
-        setTextColor(cor(R.color.primaria))
+        setTextColor(cor(R.color.texto_secundario))
         setPadding(0, 0, 0, dp(6))
     }
 
@@ -154,8 +219,10 @@ object Ui {
         isAllCaps = false
         textSize = 14f
         setTextColor(cor(R.color.texto))
+        // ghost button, as the design draws it: transparent body, quiet hairline. The
+        // filled gray version competed with the primary gold for weight on every screen.
         background = GradientDrawable().apply {
-            setColor(cor(R.color.superficie_recipiente_alto))
+            setColor(Color.TRANSPARENT)
             setStroke(dp(1), cor(R.color.contorno))
             cornerRadius = dp(6).toFloat()
         }
@@ -197,7 +264,9 @@ object Ui {
                 TextView(this@linhaNav).apply {
                     text = "›"
                     textSize = 20f
-                    setTextColor(cor(R.color.primaria))
+                    // dim chevron, as in the design: it's a hint, not an action. Gold
+                    // here was one more place stealing from the gold proportion.
+                    setTextColor(cor(R.color.texto_secundario))
                 }
             )
         }
@@ -259,7 +328,10 @@ object Ui {
                 TextView(this@placar).apply {
                     text = numero
                     textSize = 40f
-                    setTextColor(cor(R.color.primaria))
+                    // large, LIGHT and in ink, the Sleep Cycle score grammar the design
+                    // borrowed: the number is data, not an accent. Gold made it a banner.
+                    typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
+                    setTextColor(cor(R.color.texto))
                 }
             )
             addView(
@@ -329,10 +401,17 @@ object Ui {
                         setStroke(dp(2), cor(R.color.aviso), dp(4).toFloat(), dp(3).toFloat())
                     }
                 } else {
-                    GradientDrawable().apply {
+                    // the design's column: solid at the top fading toward the base, and a
+                    // COMPLETE column turns sage (sustained data reads as confirmation).
+                    val cheia = cor(if (dado.fracao >= 1f) R.color.sucesso else R.color.primaria)
+                    val base = Color.argb(
+                        (0.35f * 255).toInt(), Color.red(cheia), Color.green(cheia), Color.blue(cheia),
+                    )
+                    GradientDrawable(
+                        GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(cheia, base),
+                    ).apply {
                         shape = GradientDrawable.RECTANGLE
                         cornerRadius = dp(3).toFloat()
-                        setColor(cor(R.color.primaria))
                     }
                 }
             }

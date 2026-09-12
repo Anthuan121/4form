@@ -32,4 +32,9 @@
     <color name="aviso">#DFA050</color>                     <!-- pending item and declared gap -->
     <color name="sucesso">#9CAF88</color>                   <!-- "sage": confirmation and completion -->
     <color name="icone_fundo">#080A0F</color>               <!-- adaptive icon background -->
+    <!-- The bubble's body, from the approved HTML (bolha-estados 09/12): a surface one
+         step lighter than the page plus a top-left sheen. Flat cosmic black here made
+         the bubble read as a hole, which is what he flagged comparing app vs HTML. -->
+    <color name="bolha_corpo">#151A24</color>
+    <color name="bolha_brilho">#1B2130</color>
 </resources>

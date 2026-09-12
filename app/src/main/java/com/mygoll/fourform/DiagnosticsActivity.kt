@@ -30,7 +30,9 @@ class DiagnosticsActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val (rolo, c) = coluna()
+        // the one raw screen, per the approved design: no dreamy gradient here,
+        // "nobody is dreaming on this screen, they're debugging"
+        val (rolo, c) = coluna(onirico = false)
         col = c
         setContentView(rolo)
     }
