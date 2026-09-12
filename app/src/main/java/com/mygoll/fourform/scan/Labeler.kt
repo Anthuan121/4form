@@ -19,7 +19,20 @@ object Labeler {
 
     // ponytail: 240px herdado do form-agent-core; é chute documentado lá, não medida.
     // Só o teste no aparelho, com formulário real, calibra este número.
-    const val RAIO_PX = 240
+    /**
+     * Teto de distância para aceitar o texto vizinho como rótulo. Era 240 e virou 60 com
+     * medição, no formulário da Canonical (28 campos) no aparelho dele em 12/09:
+     *
+     *   acertos por vizinho → 10, 11, 16, 18, 19 px
+     *   erros   por vizinho → 144, 196, 197 px
+     *
+     * ⛔ Nenhum acerto no meio. Acima de ~20px o "vizinho mais próximo" já não é o rótulo do
+     * campo, é o texto que sobrou por perto — e aí o raio não tolera ruído, ele FABRICA rótulo:
+     * dois campos distintos ficaram com "What time zone are you in?" e o GitHub recebeu o fuso.
+     * 🎓 Rótulo inventado é pior que campo em branco: em branco a pessoa resolve num toque,
+     * inventado ela precisa primeiro DESCOBRIR que está errado.
+     */
+    const val RAIO_PX = 60
 
     /** Origens que contam como "nível que resolveu" (viewId-cru fica de fora de propósito). */
     val NIVEIS = listOf("labeledBy", "hint", "descricao", "viewId", "irmao", "vizinho")
