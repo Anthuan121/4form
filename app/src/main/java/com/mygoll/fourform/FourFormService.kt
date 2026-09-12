@@ -124,15 +124,35 @@ class FourFormService : AccessibilityService() {
         }
     }
 
+    /**
+     * A árvore da PÁGINA, nunca a do painel que acabou de fechar.
+     *
+     * 🎓 `wm.removeView` não tira a janela na mesma linha: quem remove de verdade é o
+     * system_server, um ou dois frames depois. Ler `rootInActiveWindow` no mesmo instante
+     * devolve null (ou ainda a janela do overlay), a rodada varre o nada e termina sem tocar
+     * em campo nenhum — que é exatamente o "apertei Try again e não acontece nada".
+     * Por isso aqui se TENTA de novo por alguns frames em vez de confiar num sleep fixo:
+     * sleep fixo é um chute sobre a velocidade do aparelho, e aparelho lento quebra o chute.
+     */
+    private fun comRaizDaPagina(tentativa: Int = 0, aoTer: (AccessibilityNodeInfo) -> Unit) {
+        val raiz = rootInActiveWindow
+        if (raiz != null && raiz.packageName?.toString() != packageName) return aoTer(raiz)
+        if (tentativa >= 6) { // ~300ms: passou disso, não é corrida, é tela sem árvore mesmo
+            Notices.texto(this, "No active window to read.")
+            return
+        }
+        handler.postDelayed({ comRaizDaPagina(tentativa + 1, aoTer) }, 50L)
+    }
+
     /** O gatilho. Abre a rodada: sessão nova, motor novo, primeira varredura, e o laço anda. */
     private fun preencher() {
         abortarRodadaSeAtiva("you triggered it again mid-round")
         painel?.fechar()
         fecharSessao() // gatilho novo com sessão velha aberta: salva o que a velha aprendeu
-        val raiz = rootInActiveWindow ?: run {
-            Notices.texto(this, "No active window to read.")
-            return
-        }
+        comRaizDaPagina { raiz -> preencherCom(raiz) }
+    }
+
+    private fun preencherCom(raiz: AccessibilityNodeInfo) {
         abrirPainel = null
         // a bolha nasce junto com a rodada e já conta que está lendo a tela
         bolha?.fechar()
@@ -185,11 +205,7 @@ class FourFormService : AccessibilityService() {
     private fun retomar() {
         val s = sessao ?: return preencher() // sessão morta: aí é rodada nova mesmo
         painel?.fechar()
-        handler.removeCallbacksAndMessages(null)
-        val raiz = rootInActiveWindow ?: run {
-            Notices.texto(this, "No active window to read.")
-            return
-        }
+        handler.removeCallbacksAndMessages(null) // ⚠️ antes de agendar, nunca depois
         motor = Engine()
         nosPorChave.clear()
         rolavel = null
@@ -198,8 +214,10 @@ class FourFormService : AccessibilityService() {
         motivoDaParada = ""
         bolha?.estado(Bubble.Estado.INTERPRETANDO)
         abrirPainel = { montarPainel(s) }
-        varrer(raiz)
-        avancar()
+        comRaizDaPagina { raiz ->
+            varrer(raiz)
+            avancar()
+        }
     }
 
     private fun varrer(raiz: AccessibilityNodeInfo) {
