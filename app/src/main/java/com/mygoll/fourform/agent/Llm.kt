@@ -13,6 +13,15 @@ import com.mygoll.fourform.scan.Extractor
  * âncora, ou com âncora que não existe no perfil, é tratada como invenção e rebaixada
  * para campo aberto. E resposta de LLM NUNCA é escrita sem toque da pessoa.
  *
+ * (English, brief 259): this is the most important rule change in the product. The anchor
+ * stopped being TEXT EQUALITY ("the value appears literally in the profile") and became
+ * PROVENANCE ("which profile line the AI derived the answer from, and that line is real").
+ * Why: a real form had 30 readable options and the app checked ZERO, because "5+ years"
+ * does not exist literally in a CV that says "12 years... the last 7+...". The AI is now
+ * allowed to INTERPRET (convert a unit, pick the covering range, translate a level, decide
+ * yes/no from a stated fact). What the app validates is whether the cited source line is
+ * real, not whether the answer is a copy of it.
+ *
  * Este arquivo é PURO (testável em JVM): candidatura, corpo da requisição, validação da
  * resposta e aplicação do veredito. A rede vive em LlmBridge.kt, fina de propósito.
  */
@@ -29,7 +38,15 @@ object Llm {
     // milissegundos. Uma referência a BuildConfig aqui arrastaria o Android para dentro do
     // núcleo. Então quem conhece a URL é quem já fala com a rede: LlmBridge.
 
-    data class Sugestao(val resposta: String, val ancora: String, val confianca: String)
+    /**
+     * (English) `literal=true` when the answer is a copy of the cited line itself;
+     * `false` when the AI DERIVED it (converted a unit, picked a range, translated a
+     * level, answered yes/no from a stated fact). Brief 259: the rule stopped requiring
+     * equality and started requiring PROVENANCE; this field is only what the diagnostic
+     * uses to measure the effect of the change, NEVER a second validation gate (the gate
+     * is `ancoraExiste`).
+     */
+    data class Sugestao(val resposta: String, val ancora: String, val confianca: String, val literal: Boolean = true)
 
     sealed class Veredito {
         data class Responder(val sugestao: Sugestao) : Veredito()
@@ -91,6 +108,15 @@ object Llm {
             append("Responda SOMENTE com um JSON, sem texto em volta:\n")
             append("{\"pode_responder\": true|false, \"resposta\": \"...\", \"ancora\": \"...\", \"confianca\": \"alta|media|baixa\"}\n")
             append("- \"resposta\": o texto pronto para entrar no campo, redigido SÓ a partir do perfil, no idioma do campo.\n")
+            // (English) Brief 259: measured on the real device, a form had 30 readable
+            // options and the app checked ZERO because the profile did not have the exact
+            // string. "5+ years" is not in the CV, but "12 years... the last 7+..." proves
+            // that range. The old gate demanded equality; the new gate demands PROVENANCE
+            // (which line the answer came from).
+            append("- Você PODE INTERPRETAR o perfil, não só copiar: converter unidade (ex.: \"12 years\" → \"5+ years\"), ")
+            append("escolher a faixa/nível mais próxima do que o perfil diz, traduzir um nível de proficiência, ")
+            append("ou responder sim/não a partir de um fato declarado. Interpretar não é inventar: a resposta ")
+            append("continua tendo que vir de uma linha REAL do perfil, nunca de um fato que não está lá.\n")
             // Found dele em 10/09: o perfil pode estar numa língua e o formulário em outra
             // (perfil em português, Greenhouse em inglês). Quem manda é o RÓTULO do campo,
             // não a língua do perfil nem a do aparelho — o mesmo perfil serve a qualquer país.
@@ -98,7 +124,9 @@ object Llm {
             append("Se o perfil diz \"nao\" e o campo pergunta em inglês, a resposta é \"No\".\n")
             append("- ⛔ NUNCA traduza nome de pessoa, e-mail, telefone, URL, nome de empresa ou de instituição: ")
             append("copie exatamente como estão no perfil. Traduza só o CONTEÚDO (cargo, descrição, sim/não, texto aberto).\n")
-            append("- \"ancora\": cópia EXATA da linha do perfil de onde a resposta saiu. Obrigatória quando pode_responder é true.\n")
+            append("- \"ancora\": cópia EXATA da linha do perfil que SUSTENTA a resposta, mesmo quando a resposta foi ")
+            append("interpretada e não copiada (ex.: perfil \"12 years in design, the last 7+ in product\", resposta ")
+            append("\"5+ years\", ancora é a linha do perfil, NUNCA a resposta). Obrigatória quando pode_responder é true.\n")
             append("- Se o perfil não tem o dado, pode_responder é false e \"resposta\" explica em poucas palavras o que falta.\n")
             append("- Nunca invente fato que não esteja no perfil.")
         }
@@ -143,7 +171,8 @@ object Llm {
         }
         val confianca = lerString(json, "confianca", exigirFim = true)?.lowercase()
             ?.takeIf { it == "alta" || it == "media" || it == "baixa" } ?: "baixa"
-        return Veredito.Responder(Sugestao(resposta, ancora, confianca))
+        val literal = Matcher.normalizar(ancora).contains(Matcher.normalizar(resposta))
+        return Veredito.Responder(Sugestao(resposta, ancora, confianca, literal))
     }
 
     /**
@@ -155,7 +184,10 @@ object Llm {
         when (veredito) {
             is Veredito.Responder -> {
                 sugestoes[reg.campo.chave] = veredito.sugestao
-                "sugeriu"
+                // (English) literal vs derived is the MEASUREMENT that brief 259 asks for:
+                // without it there is no way to tell whether the new rule (provenance)
+                // improved or worsened the answer rate.
+                if (veredito.sugestao.literal) "sugeriu_literal" else "sugeriu_derivada"
             }
             is Veredito.NaoResponder ->
                 if (veredito.doModelo) {
@@ -165,6 +197,77 @@ object Llm {
                     "falhou"
                 }
         }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // CHOICE WITH PROVENANCE (brief 259, the same rule applied to radio/checkbox/select)
+    //
+    // Difference from corpo()/avaliar(): here there is a SECOND gate that never loosens.
+    // The marked option has to be an EXACT copy of one of the options shown on screen.
+    // Deriving is allowed for the REASONING ("12 years... 7+..." -> "5+ years"), never for
+    // inventing an option the screen did not offer. Both gates (option literally in the
+    // list, plus the anchor existing in the profile) are mandatory; the second never
+    // replaces the first.
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    fun corpoEscolha(pergunta: String, opcoes: List<String>, linhasDePerfil: List<String>): String {
+        val prompt = buildString {
+            append("Você é o Preenche, um agente que marca opções de formulário SEM INVENTAR nada sobre a pessoa.\n")
+            append("Profile confirmado pela pessoa, uma linha \"chave: valor\" por dado:\n")
+            linhasDePerfil.forEach { append(it).append('\n') }
+            append("\nPergunta do formulário: \"").append(pergunta).append("\"\n")
+            append("Opções desta tela (escolha UMA, cópia EXATA de uma delas):\n")
+            opcoes.forEach { append("- ").append(it).append('\n') }
+            append("\nResponda SOMENTE com um JSON, sem texto em volta:\n")
+            append("{\"pode_responder\": true|false, \"resposta\": \"...\", \"ancora\": \"...\", \"confianca\": \"alta|media|baixa\"}\n")
+            append("- \"resposta\": cópia EXATA de uma das opções listadas acima. ⛔ NUNCA escreva uma opção que não está na lista.\n")
+            append("- Você PODE INTERPRETAR para escolher a opção certa: converter unidade, escolher a faixa que cobre ")
+            append("o valor real do perfil, traduzir nível, ou decidir sim/não a partir de um fato declarado.\n")
+            append("- \"ancora\": cópia EXATA da linha do perfil que SUSTENTA a escolha, mesmo quando a opção foi ")
+            append("interpretada e não copiada do perfil. Obrigatória quando pode_responder é true.\n")
+            append("- Se nenhuma opção pode ser sustentada por uma linha real do perfil, pode_responder é false.\n")
+            append("- Nunca invente fato que não esteja no perfil.")
+        }
+        return "{\"model\": ${Json.str(MODELO)}, \"max_tokens\": 400, " +
+            "\"messages\": [{\"role\": \"user\", \"content\": ${Json.str(prompt)}}]}"
+    }
+
+    /** Same failure tolerance as avaliar(): anything unreadable degrades to NaoResponder, never throws. */
+    fun avaliarEscolha(resultadoHttp: Result<String>, opcoes: List<String>, linhasDePerfil: List<String>): Veredito {
+        val bruto = resultadoHttp.getOrElse {
+            return Veredito.NaoResponder("the AI didn't respond (${it.message ?: it.javaClass.simpleName})", doModelo = false)
+        }
+        return runCatching { avaliarEscolhaConteudo(bruto, opcoes, linhasDePerfil) }
+            .getOrElse { Veredito.NaoResponder("the AI's response was unreadable", doModelo = false) }
+    }
+
+    private fun avaliarEscolhaConteudo(bruto: String, opcoes: List<String>, linhas: List<String>): Veredito {
+        val conteudo = lerString(bruto, "content", exigirFim = false)
+            ?: return Veredito.NaoResponder("the AI responded with no content", doModelo = false)
+        val i = conteudo.indexOf('{')
+        if (i < 0) return Veredito.NaoResponder("the AI didn't return the expected JSON", doModelo = false)
+        val json = conteudo.substring(i)
+        val pode = Regex("\"pode_responder\"\\s*:\\s*(true|false)").find(json)?.groupValues?.get(1)
+            ?: return Veredito.NaoResponder("the AI didn't return the expected JSON", doModelo = false)
+        if (pode == "false") {
+            val motivo = lerString(json, "resposta", exigirFim = true)?.takeIf { it.isNotBlank() }
+            return Veredito.NaoResponder(motivo ?: "the AI said your profile doesn't have this", doModelo = true)
+        }
+        val resposta = lerString(json, "resposta", exigirFim = true)?.takeIf { it.isNotBlank() }
+            ?: return Veredito.NaoResponder("the AI's answer came back empty or cut off", doModelo = false)
+        // gate 1, non-negotiable: the option has to be one the screen actually offered.
+        val opcaoBatida = opcoes.firstOrNull { Matcher.normalizar(it) == Matcher.normalizar(resposta) }
+            ?: return Veredito.NaoResponder("the AI picked an option that wasn't on screen: treated as invention", doModelo = false)
+        val ancora = lerString(json, "ancora", exigirFim = true)?.takeIf { it.isNotBlank() }
+            ?: return Veredito.NaoResponder("answer with no anchor in your profile: treated as invention", doModelo = false)
+        // gate 2: the declared provenance has to actually exist.
+        if (!ancoraExiste(ancora, linhas)) {
+            return Veredito.NaoResponder("the cited anchor doesn't exist in your profile: treated as invention", doModelo = false)
+        }
+        val confianca = lerString(json, "confianca", exigirFim = true)?.lowercase()
+            ?.takeIf { it == "alta" || it == "media" || it == "baixa" } ?: "baixa"
+        val literal = Matcher.normalizar(ancora).contains(Matcher.normalizar(opcaoBatida))
+        return Veredito.Responder(Sugestao(opcaoBatida, ancora, confianca, literal))
+    }
 
     // ─────────────────────────────────────────────────────────────────────────────
     // LEITURA DO CURRÍCULO (10/09, achado dele no aparelho: 55 linhas em "não entendi")
@@ -249,7 +352,15 @@ object Llm {
         return v.isNotEmpty() && l.isNotEmpty() && l.contains(v)
     }
 
-    /** A âncora tem que EXISTIR no perfil (dos dois lados, com folga de forma): senão é fabricação. */
+    /**
+     * (English) This is the entire gate of the new rule (brief 259): it does NOT test
+     * whether the ANSWER equals a profile line (that check died today, it is what made
+     * "5+ years" fail against a CV that says "12 years... the last 7+..."). It tests
+     * whether the declared PROVENANCE actually exists: the line the AI cited as the
+     * source has to be in the profile that was sent (checked both ways, with slack for
+     * whitespace/punctuation paraphrase). Cited a line that does not exist, it is
+     * fabrication, the whole answer is discarded, even if the final text looks plausible.
+     */
     private fun ancoraExiste(ancora: String, linhas: List<String>): Boolean {
         val a = Matcher.normalizar(ancora)
         if (a.isEmpty()) return false
