@@ -4,7 +4,7 @@
      baseline dark — a comparação com número que descartou a translúcida está em
      /root/shared-memory/produto/preenche-decisao-de-superficie.md. -->
 <resources>
-    <style name="Tema.Preenche" parent="android:Theme.Material.NoActionBar">
+    <style name="Theme.4Form" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/superficie</item>
         <item name="android:colorBackground">@color/superficie</item>
         <!-- textColor global mantido do 240 (provado no aparelho de build); os papéis

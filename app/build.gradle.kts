@@ -5,15 +5,15 @@ plugins {
 }
 
 android {
-    namespace = "com.mygoll.funform"
+    namespace = "com.mygoll.fourform"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.mygoll.funform"
+        applicationId = "com.mygoll.fourform"
         minSdk = 26
         targetSdk = 35
         versionCode = 10
-        versionName = "0.1-funform"
+        versionName = "1.0-4form"
 
         // A URL da ponte (com o segredo do caminho) vem do local.properties, que NUNCA e
         // versionado. O repo pode ir publico mostrando a arquitetura inteira sem entregar
@@ -26,7 +26,7 @@ android {
         buildConfigField(
             "String",
             "LLM_URL",
-            "\"" + (propsLocais.getProperty("FUNFORM_LLM_URL") ?: propsLocais.getProperty("PREENCHE_LLM_URL") ?: "") + "\"",
+            "\"" + (propsLocais.getProperty("FOURFORM_LLM_URL") ?: propsLocais.getProperty("PREENCHE_LLM_URL") ?: "") + "\"",
         )
     }
 

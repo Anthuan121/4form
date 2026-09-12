@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Preenche</string>
-    <string name="descricao_servico">Quando você toca no botão de acessibilidade, o Preenche lê os campos de texto da tela e escreve neles o que já sabe do seu perfil. Field de senha nunca é lido nem escrito. Nada sai do aparelho.</string>
+    <string name="app_name">4Form</string>
+    <string name="descricao_servico">When you tap the accessibility button, 4Form reads the form on screen and fills in what your profile already says. Password fields are never read or written. Nothing leaves your device.</string>
 </resources>

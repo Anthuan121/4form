@@ -12,7 +12,7 @@
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:theme="@style/Tema.Preenche">
+        android:theme="@style/Theme.4Form">
 
         <activity
             android:name=".MainActivity"
@@ -29,13 +29,13 @@
         <activity
             android:name=".ProfileFileActivity"
             android:exported="true"
-            android:label="Preenche · perfil">
+            android:label="4Form · profile">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/*" />
                 <!-- Telegram e gerenciador de arquivos costumam mandar .md como
-                     application/octet-stream; sem esta linha o Preenche não aparece na
+                     application/octet-stream; sem esta linha 4Form does not show up in the
                      lista do compartilhar. Mais estreito que "*/*" de propósito: não
                      queremos o app em TODO compartilhar. O código já lê por stream. -->
                 <data android:mimeType="application/octet-stream" />
@@ -58,12 +58,12 @@
              (grant por URI no intent). Nenhum outro dado do filesDir passa por aqui. -->
         <provider
             android:name=".FileProvider"
-            android:authorities="com.mygoll.funform.diagnosticos"
+            android:authorities="com.mygoll.fourform.diagnosticos"
             android:exported="false"
             android:grantUriPermissions="true" />
 
         <service
-            android:name=".FunFormService"
+            android:name=".FourFormService"
             android:exported="false"
             android:label="@string/app_name"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
@@ -72,7 +72,7 @@
             </intent-filter>
             <meta-data
                 android:name="android.accessibilityservice"
-                android:resource="@xml/funform_service" />
+                android:resource="@xml/fourform_service" />
         </service>
     </application>
 </manifest>
