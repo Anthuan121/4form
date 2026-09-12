@@ -1,6 +1,9 @@
 package com.mygoll.fourform
 
 import com.mygoll.fourform.scan.Learned
+import com.mygoll.fourform.scan.Entrada
+import com.mygoll.fourform.scan.Fontes
+import com.mygoll.fourform.scan.Matcher
 import android.Manifest
 import android.app.Activity
 import android.content.Intent
@@ -117,6 +120,11 @@ class MainActivity : Activity() {
             }
         )
         cartaoNav.addView(
+            linhaNav("Sources", "which files fed your profile, and when") {
+                startActivity(Intent(this, SourcesActivity::class.java))
+            }
+        )
+        cartaoNav.addView(
             linhaNav("Diagnostics", "the scans, for when something doesn't work") {
                 startActivity(Intent(this, DiagnosticsActivity::class.java))
             }
@@ -170,8 +178,31 @@ class MainActivity : Activity() {
         super.onPause()
     }
 
+    /**
+     * The free-text box is its own source, "typed by hand" (brief 258). Only lines whose
+     * value actually changed become a new entry in the log: otherwise reopening the app and
+     * backgrounding it again would pile up one identical entry per pause.
+     * ponytail: a line the person deletes from the box isn't removed from the log (it can
+     * resurface if a source gets removed later and the key has no newer entry); fixing that
+     * needs a diff against the PREVIOUS box content, out of scope for this brief.
+     */
     private fun salvarPerfil(avisar: Boolean) {
-        Store.salvarPerfilTexto(this, caixaPerfil.text.toString())
+        val texto = caixaPerfil.text.toString()
+        val pares = texto.lines().mapNotNull { linha ->
+            val i = linha.indexOf(':')
+            if (i <= 0) return@mapNotNull null
+            val chave = linha.substring(0, i).trim()
+            val valor = linha.substring(i + 1).trim()
+            if (chave.isBlank() || valor.isBlank()) null else chave to valor
+        }
+        val efetivos = Fontes.efetivo(Store.fontes(this)).associateBy { Matcher.normalizar(it.chave) }
+        val mudados = pares.filter { (chave, valor) -> efetivos[Matcher.normalizar(chave)]?.valor != valor }
+        if (mudados.isEmpty()) {
+            Store.salvarPerfilTexto(this, texto)
+        } else {
+            val agora = System.currentTimeMillis()
+            Store.adicionarFontes(this, mudados.map { (chave, valor) -> Entrada(chave, valor, "typed by hand", agora) })
+        }
         if (avisar) {
             android.widget.Toast.makeText(this, "Profile saved on this device.", android.widget.Toast.LENGTH_SHORT).show()
         }

@@ -51,6 +51,10 @@
             android:exported="false" />
 
         <activity
+            android:name=".SourcesActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".DiagnosticsActivity"
             android:exported="false" />
 
