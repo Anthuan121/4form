@@ -481,16 +481,6 @@ class FourFormService : AccessibilityService() {
                 // limpa o campo de verdade e só então marca desfeito
                 escrever(nosPorChave[chave], "") && s.desfazer(chave)
             },
-            aoEscrever = { chave, valor ->
-                val ok = escrever(nosPorChave[chave], valor) && s.escreverAgora(chave, valor)
-                // se havia sugestão da IA para este campo, o que a pessoa escreveu diz o
-                // desfecho: igual à sugestão = aceita; diferente = editada (a correção
-                // já entrou nos aprendidos pelo escreverAgora, e vence a IA na próxima)
-                if (ok) sugestoesLlm.remove(chave)?.let { sug ->
-                    fecharEpisodioLlm(s, chave, if (valor == sug.resposta) "aceita" else "editada")
-                }
-                ok
-            },
             aoFechar = { painel = null },
             sugestao = { chave -> sugestoesLlm[chave] },
             consultando = { chave -> llmDiag[chave]?.desfecho == "consultando" },
@@ -504,9 +494,6 @@ class FourFormService : AccessibilityService() {
                 }
                 ok
             },
-            aoDescartar = { chave ->
-                if (sugestoesLlm.remove(chave) != null) fecharEpisodioLlm(s, chave, "descartada")
-            },
             escolhasVistas = { escolhas.size },
             escolhasLista = { escolhas.values.toList() },
             aoMarcar = { chave ->
@@ -518,22 +505,28 @@ class FourFormService : AccessibilityService() {
                 ok
             },
             aoTentarDeNovo = { retomar() },
-            estadoAoVivo = {
-                // o log do laço + em que passo o motor está AGORA. Com a rodada encerrada
-                // entra também o motivo da parada, que é o que explica "parou cedo".
-                buildList {
-                    addAll(laco)
-                    val m = motor
-                    if (m != null) {
-                        add("current step: ${m.proximoPasso()::class.simpleName}")
-                        add("scroll rounds: ${m.voltasDeRolagem}")
-                        add("scrolling via: ${if (usandoGesto) "drag gesture" else "tree action"}")
-                    } else if (motivoDaParada.isNotBlank()) {
-                        add("stopped because: $motivoDaParada")
-                    }
-                }
-            },
+            // brief 255: only the EXCEPTION he approved reaches the panel · a round that
+            // ended in a real failure (watchdog fired, or the screen stopped scrolling).
+            // While the loop is still running (motor != null) there's nothing to show
+            // here: the bubble already reports that (Bubble.Estado), and the step-by-step
+            // log had become developer noise.
+            linhaDeFalha = { if (motor == null) linhaHumanaDaFalha(motivoDaParada) else null },
         ).also { it.mostrar() }
+    }
+
+    /**
+     * Translates the technical stop reason into a single plain-language sentence, no
+     * jargon, no node number · only for the two causes that ARE app failures (brief 255):
+     * the watchdog fired, or no scrolling method moved the screen. A normal end of the
+     * form (reached the end, screen changed, no field found) is not a failure and
+     * doesn't reach this function.
+     */
+    private fun linhaHumanaDaFalha(motivo: String): String? = when {
+        motivo.contains("stopped responding") ->
+            "Something got stuck while filling the form. Try again, or scroll down yourself and tap the bubble."
+        motivo.contains("doesn't move") ->
+            "I couldn't scroll any further on this screen. Scroll down yourself, then tap the bubble to try again."
+        else -> null
     }
 
     /**

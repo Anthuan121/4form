@@ -8,7 +8,6 @@ import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.WindowManager
 import android.widget.Button
-import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -48,14 +47,13 @@ class Panel(
     private val service: AccessibilityService,
     private val registros: () -> List<Session.Registro>,
     private val aoDesfazer: (String) -> Boolean,
-    private val aoEscrever: (String, String) -> Boolean,
     private val aoFechar: () -> Unit,
-    // brief 245: a sugestão da IA por chave de campo (null = não há), se ainda está
-    // consultando, e as duas saídas que não passam pelo EditText comum
+    // brief 245: the AI suggestion per field key (null = none) and whether it's still
+    // asking. brief 255: the panel stopped accepting typed input (item 2), so the only
+    // action per suggestion is USE (item 3) · Edit/Discard left together with the typing.
     private val sugestao: (String) -> Llm.Sugestao? = { null },
     private val consultando: (String) -> Boolean = { false },
     private val aoUsar: (String) -> Boolean = { false },
-    private val aoDescartar: (String) -> Unit = {},
     // censo desta rodada: quantos campos de ESCOLHA o app viu passar e ainda não opera.
     // Na tela porque medir no dump exige subir o arquivo e abrir no computador; o número
     // que muda decisão tem que aparecer onde a decisão acontece.
@@ -67,15 +65,15 @@ class Panel(
     private val escolhasLista: () -> List<Choice> = { emptyList() },
     private val aoMarcar: (String) -> Boolean = { false },
     /**
-     * O QUE ESTÁ ACONTECENDO AGORA, uma linha por varredura, mais o motivo da parada quando
-     * já parou. Pedido dele em 12/09 depois de ver a bolha girar sem fim: "a minha intenção
-     * era, quando eu clicasse na bolinha, VER O QUE ESTÁ ACONTECENDO".
-     *
-     * 🎓 Por que isso vale mais que um log no arquivo: o dump só ajuda depois, num
-     * computador. Quem está com o formulário aberto precisa da causa NA HORA, e é a causa
-     * que decide se ele toca de novo, rola na mão ou desiste da tela.
+     * brief 255, fixing 245: the step-by-step scan log ("scan 1: scrollable ...") had
+     * become developer noise on the user's screen · he asked to SEE what was happening
+     * and the app handed him code. Collection keeps going to the diagnostics file
+     * (FourFormService still writes `laco` there); only the EXCEPTION he approved stays
+     * here: when the round ended in FAILURE (watchdog fired, screen stopped scrolling),
+     * one plain-language line, no jargon, no node number. `null` when there was no
+     * failure · most rounds show nothing here.
      */
-    private val estadoAoVivo: () -> List<String> = { emptyList() },
+    private val linhaDeFalha: () -> String? = { null },
     /**
      * Rodar de novo NO QUE FALTOU, sem recomeçar. Pedido dele em 12/09, depois de ver o laço
      * parar no meio e ter que apertar o botão de acessibilidade outra vez: a rodada que
@@ -88,10 +86,6 @@ class Panel(
     private var raiz: FrameLayout? = null
     private lateinit var lista: LinearLayout
     private lateinit var titulo: TextView
-
-    // campos em que a pessoa tocou "Editar" na sugestão da IA: o cartão vira EditText
-    // pré-preenchido e a escrita segue o caminho comum (que aprende a correção)
-    private val emEdicao = mutableSetOf<String>()
 
     private fun cor(id: Int): Int = service.resources.getColor(id, null)
     private fun dp(v: Int): Int = service.dp(v)
@@ -154,7 +148,7 @@ class Panel(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            0, // janela focável: o EditText de "digitar ali mesmo" precisa do teclado
+            0, // focusable window: keeps the overlay's default behavior across reopenings
             PixelFormat.TRANSLUCENT,
         ).apply {
             softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
@@ -196,14 +190,10 @@ class Panel(
         }
         lista.removeAllViews()
 
-        // O ESTADO DO LAÇO vem PRIMEIRO quando a rodada ainda não acabou: nesse momento a
-        // pergunta dele não é "o que você preencheu", é "o que você está fazendo".
-        val passos = estadoAoVivo()
-        if (passos.isNotEmpty()) {
-            lista.addView(secao("What's happening"))
-            for (linhaPasso in passos) {
-                lista.addView(texto(linhaPasso, R.color.texto_secundario))
-            }
+        // brief 255: only the FAILURE line comes first, plain, no jargon. The
+        // step-by-step log that used to live here is gone for good (still in the diagnostics file).
+        linhaDeFalha()?.let { falha ->
+            lista.addView(texto(falha, R.color.erro))
             lista.addView(espaco(10))
         }
 
@@ -216,6 +206,9 @@ class Panel(
         // (é o que dá confiança de que o app agiu), sem ter que aprovar um por um. E o
         // desfazer não some do produto: a correção é feita no próprio campo, e o app
         // aprende dela pelo TYPE_VIEW_TEXT_CHANGED · o mesmo mecanismo do 3º ato.
+        // brief 255: exactly three states per open field, never typing in the panel.
+        // "no proposal" is already said by the line below (label + reason) · no button,
+        // because not typing here is what he asked: "if I'm going to type, I type in the form".
         if (abertos.isNotEmpty()) lista.addView(secao("Left for you"))
         for (r in abertos) {
             // ponto ÂMBAR, não brasa: lacuna declarada é virtude do produto, não falha.
@@ -225,31 +218,12 @@ class Panel(
             )
             val chave = r.campo.chave
             val sug = sugestao(chave)
-            if (sug != null && chave !in emEdicao) {
-                lista.addView(cartaoIa(chave, sug))
-                continue
+            when {
+                sug != null -> lista.addView(cartaoIa(chave, sug))
+                consultando(chave) -> lista.addView(texto("asking the AI…", R.color.texto_secundario))
+                // else: no proposal. The itemComPonto line above already says which field
+                // it is and why it's blank · information, not action.
             }
-            if (consultando(chave)) {
-                lista.addView(texto("asking the AI…", R.color.texto_secundario))
-            }
-            val caixa = campoTexto("type the value and tap Write").apply {
-                // "Editar" da sugestão: começa do texto da IA; o que sair daqui é da pessoa
-                if (chave in emEdicao && sug != null) setText(sug.resposta)
-            }
-            lista.addView(caixa)
-            // botão dourado e COMPACTO: é ação por item, não a ação da tela inteira ·
-            // dourado em faixa cheia aqui viraria uma parede de ouro a cada campo aberto
-            lista.addView(linhaDeBotoes(botaoCompacto("Write in field", primario = true) {
-                val v = caixa.text.toString()
-                if (v.isNotBlank()) {
-                    if (aoEscrever(chave, v)) {
-                        emEdicao.remove(chave)
-                        montar()
-                    } else {
-                        caixa.error = "couldn't write: did the field leave the screen?"
-                    }
-                }
-            }))
         }
 
         // ⛔ ESCOLHA NÃO VIRA BOTÃO NO PAINEL. Régua dele, 12/09, testando no ônibus: "se
@@ -271,12 +245,17 @@ class Panel(
     }
 
     /**
-     * O cartão da resposta da IA (brief 245): visualmente DISTINTO do resto porque é
-     * SUGESTÃO, não fato · fundo um degrau abaixo e contorno na cor primária, que em todo
-     * o app marca "aqui o agente está falando". Mostra a resposta, a ÂNCORA ⌁ de onde ela
-     * saiu (a promessa "não invento sobre você" se prova com procedência, não com texto de
-     * marketing) e a confiança · e três saídas: Usar / Editar / Descartar. ⛔ Nada aqui
-     * escreve no campo sem o toque da pessoa.
+     * The AI answer card (brief 245, buttons cut down to just one in 255): visually
+     * DISTINCT from the rest because it's a SUGGESTION, not a fact · background one step
+     * down and outline in the primary color, which throughout the app marks "the agent is
+     * speaking here". Shows the answer, the ANCHOR ⌁ it came from (the promise "it does
+     * not invent things about you" is proven by provenance, not marketing copy) and the
+     * confidence.
+     *
+     * ⛔ Edit and Discard are gone (brief 255): "typing inside the modal doesn't make
+     * sense, if I'm going to type I type in the form". USE is the only action on the
+     * card, and on the whole panel besides closing and "try again" · it writes to the
+     * form field and the card leaves the list.
      */
     private fun cartaoIa(chave: String, sug: Llm.Sugestao): LinearLayout = LinearLayout(service).apply {
         orientation = LinearLayout.VERTICAL
@@ -310,14 +289,6 @@ class Panel(
                 if (aoUsar(chave)) montar()
                 else Notices.texto(service, "couldn't write: did the field leave the screen?")
             },
-            botaoCompacto("Edit", primario = false) {
-                emEdicao.add(chave)
-                montar()
-            },
-            botaoCompacto("Discard", primario = false) {
-                aoDescartar(chave)
-                montar()
-            },
         ))
     }
 
@@ -340,31 +311,9 @@ class Panel(
     }
 
     /**
-     * Field de texto do sistema: fundo recuado (um degrau abaixo do cartão, como no
-     * desenho), fio de contorno e raio 6, o degrau de campo na escala 14/10/8/6/4.
-     * 🎓 O EditText padrão do Android traz só a linha de baixo, que some sobre superfície
-     * escura; o fundo fechado é o que faz o campo parecer LUGAR onde se escreve.
-     */
-    private fun campoTexto(dica: String): EditText = EditText(service).apply {
-        hint = dica
-        textSize = 14f
-        setTextColor(cor(R.color.texto))
-        setHintTextColor(cor(R.color.texto_secundario))
-        background = GradientDrawable().apply {
-            setColor(cor(R.color.superficie_recipiente))
-            setStroke(dp(1), cor(R.color.contorno))
-            cornerRadius = dp(6).toFloat()
-        }
-        setPadding(dp(12), dp(10), dp(12), dp(10))
-        layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
-        ).apply { topMargin = dp(6) }
-    }
-
-    /**
-     * Botão compacto pra ação POR ITEM (Usar, Editar, Escrever no campo): mesma língua dos
-     * botões de Ui.kt (dourado cheio = age, contorno = coadjuvante, raio 6) mas em tamanho
-     * de linha, porque num painel com vários campos abertos cada ação é local, não da tela.
+     * Compact button for a PER-ITEM action (today only Use): same language as the
+     * buttons in Ui.kt (solid gold = act, outline = secondary, radius 6) but line-sized,
+     * because in a panel with several open fields each action is local, not for the whole screen.
      */
     private fun botaoCompacto(t: String, primario: Boolean, aoTocar: () -> Unit): Button =
         Button(service).apply {
