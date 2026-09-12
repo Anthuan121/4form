@@ -26,7 +26,7 @@ import com.mygoll.fourform.Ui.secao
 import com.mygoll.fourform.Ui.titulo
 import com.mygoll.fourform.scan.Extractor
 import com.mygoll.fourform.agent.Llm
-import com.mygoll.fourform.scan.Merger
+import com.mygoll.fourform.scan.Entrada
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.text.PDFTextStripper
@@ -341,7 +341,9 @@ class ProfileFileActivity : Activity() {
             Toast.makeText(this, "Nothing to save: all pairs are empty or deleted.", Toast.LENGTH_SHORT).show()
             return
         }
-        Store.salvarPerfilTexto(this, Merger.mesclar(Store.perfilTexto(this), confirmados))
+        val fonte = nomeDoArquivo ?: "typed by hand"
+        val agora = System.currentTimeMillis()
+        Store.adicionarFontes(this, confirmados.map { (chave, valor) -> Entrada(chave, valor, fonte, agora) })
         Toast.makeText(this, "Profile saved: ${confirmados.size} items. Nothing left this device.", Toast.LENGTH_LONG).show()
         finish()
     }

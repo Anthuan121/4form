@@ -7,6 +7,8 @@ import com.mygoll.fourform.agent.ItemAberto
 import com.mygoll.fourform.agent.ItemPreenchido
 import com.mygoll.fourform.agent.Profile
 import com.mygoll.fourform.agent.Receipt
+import com.mygoll.fourform.scan.Entrada
+import com.mygoll.fourform.scan.Fontes
 import com.mygoll.fourform.scan.Tsv
 import java.io.File
 import java.text.SimpleDateFormat
@@ -47,6 +49,46 @@ object Store {
         File(dir, "perfil.txt").delete()
         File(dir, "aprendidos.tsv").delete()
         File(dir, "ultimo-recibo.tsv").delete()
+        File(dir, "fontes.tsv").delete()
+    }
+
+    // ---- fontes (brief 258: the profile accumulates, so it must say WHERE each pair came from) ----
+
+    fun fontes(ctx: Context): List<Entrada> {
+        val f = arq(ctx, "fontes.tsv")
+        if (!f.exists()) return emptyList()
+        return f.readLines().mapNotNull { linha ->
+            val p = linha.split('\t')
+            if (p.size < 4) return@mapNotNull null
+            val quando = p[3].toLongOrNull() ?: return@mapNotNull null
+            Entrada(Tsv.des(p[0]), Tsv.des(p[1]), Tsv.des(p[2]), quando)
+        }
+    }
+
+    private fun salvarFontes(ctx: Context, lista: List<Entrada>) {
+        arq(ctx, "fontes.tsv").writeText(
+            lista.joinToString("\n") {
+                "${Tsv.esc(it.chave)}\t${Tsv.esc(it.valor)}\t${Tsv.esc(it.fonte)}\t${it.quandoMs}"
+            }
+        )
+    }
+
+    /**
+     * Appends a confirmed import (or a manual edit) to the log and rebuilds perfil.txt from
+     * the winners, key by key. This is the ONLY path that should feed the profile now: it is
+     * what makes "import A, then B" additive instead of B erasing A.
+     */
+    fun adicionarFontes(ctx: Context, novos: List<Entrada>) {
+        val atualizado = Fontes.acumular(fontes(ctx), novos)
+        salvarFontes(ctx, atualizado)
+        salvarPerfilTexto(ctx, Fontes.textoPerfil(atualizado))
+    }
+
+    /** Removes a source; keys that also came from another source keep standing on that value. */
+    fun removerFonte(ctx: Context, fonte: String) {
+        val restante = Fontes.removerFonte(fontes(ctx), fonte)
+        salvarFontes(ctx, restante)
+        salvarPerfilTexto(ctx, Fontes.textoPerfil(restante))
     }
 
     // ---- learned entries ----
