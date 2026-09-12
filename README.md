@@ -64,7 +64,7 @@ Category 4 is not a limitation we are apologising for. It is the feature.
 
 A tool that writes in your name and invents a salary expectation, a visa status, or a start date is not saving you time. It is creating a problem you will find out about in an interview.
 
-**A fifth case, and it is not the same as category 4.** Category 4 is "your CV doesn't answer this." Some fields are the opposite: the CV *could* answer them, and the agent still won't, because the answer isn't data, it's a decision that belongs to the person. Salary expectations, availability to start, gender, ethnicity, disability, "I declare that this information is true": these are reserved by rule, not by a missing fact. Fill in "salary expectations: 55k" on your profile and the field still stays blank, on purpose, and the panel says so in a different, calmer tone than "I couldn't find this" — because it is not the same failure. It is not a failure at all.
+**A fifth case, and it is not the same as category 4.** Category 4 is "your CV doesn't answer this." Some fields are the opposite: the CV *could* answer them, and the agent still won't, because the answer isn't data, it's a decision that belongs to the person. Salary expectations, availability to start, gender, ethnicity, disability, "I declare that this information is true": these are reserved by rule, not by a missing fact. Fill in "salary expectations: 55k" on your profile and the field still stays blank, on purpose, and the panel says so in a different, calmer tone than "I couldn't find this", because it is not the same failure. It is not a failure at all.
 
 ---
 
@@ -100,7 +100,7 @@ The interesting parts of this codebase are the failure paths, because that is wh
 
 ```bash
 ./gradlew :app:assembleDebug
-./gradlew :app:testDebugUnitTest   # 142 tests
+./gradlew :app:testDebugUnitTest   # 168 tests
 ```
 
 Install, enable 4Form in Android accessibility settings, open a job application, and tap the accessibility button.
@@ -113,16 +113,32 @@ The optional language model bridge reads its endpoint from `local.properties`, w
 
 ## Honest status
 
-Built in one day. What is proven on a real device, on real job forms:
+Built in one day. What is proven on a real device, on real job forms, with the probe dumps to
+show it:
 
 - writing into named, empty web fields on Greenhouse and Ashby
 - the scroll and fill loop running to the end of a form
 - refusing salary expectations, availability, sensitive identity fields, and legal declarations by RULE, even when the profile declares the value
 - the bubble, its states, and the panel it opens
+- **the learned correction being replayed on a form the agent had never seen.** On Canonical's
+  graduate application, 28 fields, 13 filled: five of them (`degree 1`, `discipline 1`,
+  `school 2`, `degree 2`, `discipline 2`) came back with `source: learned`, not from the
+  profile text. This is the claim we could not make this morning.
+- **the model deciding and writing, with its provenance on screen.** `outcome: written_by_ai`,
+  `confidence: high`, 1.6s, and the panel naming the profile line it derived from.
 
-What is not proven yet: the learned correction winning on a later round. The write is measured. The replay is not.
+The honest denominator on that Canonical run: 13 filled out of 23 contestable fields. Of the ten
+it left alone, six are questions a CV genuinely cannot answer ("How did you perform in
+mathematics at high school?", "Describe your experience contributing to open source"), one is
+reserved to the person by rule, and three are comboboxes we do not confirm yet.
 
-We would rather say that than let you assume it.
+On a form that asks for your high school maths grade, filling everything in would be the wrong
+answer. Leaving those six blank is the product working, not the product failing.
+
+What is still not proven: nothing about the refusal rule has been tested against a form
+deliberately designed to trick it.
+
+We would rather say all of that than let you assume it.
 
 ---
 
@@ -137,6 +153,29 @@ This project follows the event's build eligibility rule, so here is the line, dr
 - **The refusal rule.** Four categories of field, and the one that matters: a question the CV cannot answer is left blank with a reason, never guessed.
 - **Failure handling.** A watchdog that ends a stalled round instead of spinning forever, and a scroll gesture backed by a timer because `dispatchGesture` can dispatch, succeed, and never call back. Both found by reading real device diagnostics today.
 - **Two matching bugs found on a live job form and fixed.** Generic placeholders are no longer treated as labels, and the bilingual key table was wired into the matching path, where it had never been connected.
+- **Four more bugs, all found the same way: by reading the probe dump instead of guessing.**
+  - *The learned shortcut was demoting the label source.* Path memory learned that geometry
+    resolved labels in this browser, and started trying level 6 before the deterministic levels.
+    A field arrived carrying `viewId="first_name"` and the agent preferred to measure pixels,
+    landing on the required-field asterisk. Every label shifted down by one and his first name
+    went into the surname box.
+  - *The neighbour radius was manufacturing labels.* It was 240px. Measured on the Canonical
+    form: every correct neighbour label sat between 10 and 19px, every wrong one above 140px,
+    and nothing in between. Two different fields ended up sharing a label. Now 60px. An invented
+    label is worse than a blank field: blank, you fix it in one tap; invented, you first have to
+    notice it is wrong.
+  - *Try again did nothing.* The tree was read in the same frame the panel window was removed,
+    so the agent scanned an empty screen and finished without touching a field.
+  - *Reaching the end of a form was reported as an error.* The normal stop reason contains
+    "doesn't move", which the failure check matched, so every successful round lit the red
+    bubble. Red spent on every round stops meaning anything, and the product ends up arguing
+    against itself.
+- **The model writes, instead of waiting to be approved.** Reversing a call made this morning.
+  What it writes can be deleted, and a deletion comes back as a learned correction that outranks
+  the profile next round. Writing is what produces the training signal; a suggestion waiting in a
+  panel produces nothing when the panel is simply closed, which is what every measured round did.
+  Two locks did not move with it: a field reserved to the person stays blank even when the model
+  knows the answer, and a field that already has text is never overwritten.
 
 **Reused building block, from earlier work.** The `scan/` package: a screen reading layer built before this event, including a diagnostics probe shared with a previous Android project of mine. It walks the accessibility tree, names fields through a fallback ladder, and matches those names against profile keys.
 
