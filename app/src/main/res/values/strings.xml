@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Preenche</string>
+    <string name="descricao_servico">Quando você toca no botão de acessibilidade, o Preenche lê os campos de texto da tela e escreve neles o que já sabe do seu perfil. Field de senha nunca é lido nem escrito. Nada sai do aparelho.</string>
+</resources>

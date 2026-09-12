@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- ⛔ TEMPORÁRIO, E SÓ NA VARIANTE DEBUG (10/09/2026, pedido do Anthuan).
+         Existe para a SONDA DE BANCADA: durante o teste, o app manda o diagnóstico de cada
+         varredura para a VPS, e o CC lê em tempo real em vez de ele mandar print a cada tela.
+
+         Por que este arquivo e não o manifest de main: o Gradle mescla manifesto POR VARIANTE.
+         Estando aqui, o APK de release nasce SEM android.permission.INTERNET por construção,
+         não por disciplina de quem lembrar de tirar depois. A alternativa (declarar em main e
+         guardar o código com if BuildConfig.DEBUG) mantém a permissão declarada na ficha do
+         app publicado — inaceitável num app de acessibilidade que promete não mandar nada
+         para fora, e foi exatamente o preço que o Binspector pagou na política de privacidade.
+
+         Esta build NÃO vai para a Play Store nem para lugar nenhum: é bancada de teste.
+         Quando o mapeamento fechar, some daqui junto com a location /sonda/ do nginx. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+</manifest>

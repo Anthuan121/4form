@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Paleta "Cosmic Luxury", escolhida por ele em 12/09/2026. Substituiu o Material 3 baseline
+     dark do brief 241, cujo roxo #D0BCFF ele recusou: "está com muita cara de IA, muito
+     genérica". E estava certo: magenta/roxo saturado sobre escuro virou o uniforme de todo
+     produto de IA desde 2024, e um app que se vende como o que NÃO inventa não pode parecer
+     igual aos que inventam.
+
+     REGRA DELE, e é de PROPORÇÃO e não de inventário: cosmic_black + celestial_gold dominam
+     50 a 60% de qualquer tela. As secundárias existem para o que precisa saltar, mas são
+     minoria e derivam da mesma família (nada de semáforo Material, que é o mesmo genérico).
+
+     PROCEDÊNCIA, linha a linha:
+       cosmic_black #080A0F e celestial_gold #D4B16A vieram LITERAIS do print que ele mandou
+       (carrossel "Color Palette #70 · Cosmic Luxury Edition", perfil ui.ux.palette).
+       Todo o resto é derivação: neutros frios no escuro, texto quente na família do ouro.
+
+     CONTRASTES CALCULADOS (WCAG), com a superfície como fundo:
+       texto 15.34:1 · texto_secundario 9.40:1 · primaria 9.71:1 · aviso 8.75:1
+       · sucesso 8.39:1 · erro 5.09:1 · contorno 3.33:1 (AA gráfico; contorno não carrega texto)
+       texto sobre recipiente_alto 11.89:1 · preto sobre o ouro 9.71:1 -->
+<resources>
+    <color name="superficie">#080A0F</color>                <!-- COSMIC BLACK, literal do print -->
+    <color name="superficie_recipiente">#10141D</color>     <!-- derivado: frio, azulado -->
+    <color name="superficie_recipiente_alto">#1F2532</color><!-- derivado: frio, azulado -->
+    <color name="texto">#E9E2D2</color>                     <!-- derivado: quente, família do ouro -->
+    <color name="texto_secundario">#B9B2A4</color>          <!-- derivado -->
+    <color name="primaria">#D4B16A</color>                  <!-- CELESTIAL GOLD, literal do print -->
+    <color name="sobre_primaria">#080A0F</color>            <!-- o próprio preto sobre o ouro -->
+    <color name="contorno">#5A6478</color>                  <!-- derivado; clareado p/ passar 3:1 -->
+    <color name="erro">#C86450</color>                      <!-- "brasa": só destruição e erro -->
+    <color name="aviso">#DFA050</color>                     <!-- pendência e lacuna declarada -->
+    <color name="sucesso">#9CAF88</color>                   <!-- "sálvia": confirmação e fim -->
+    <color name="icone_fundo">#080A0F</color>               <!-- fundo do ícone adaptativo -->
+</resources>

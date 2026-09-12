@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ÚNICO arquivo de estilo do app (com colors.xml), de propósito: decisão do brief 240,
+     sistema visual entregue pelo brief 241. Choice de superfície: SÓLIDA, Material 3
+     baseline dark — a comparação com número que descartou a translúcida está em
+     /root/shared-memory/produto/preenche-decisao-de-superficie.md. -->
+<resources>
+    <style name="Tema.Preenche" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/superficie</item>
+        <item name="android:colorBackground">@color/superficie</item>
+        <!-- textColor global mantido do 240 (provado no aparelho de build); os papéis
+             abaixo cobrem hint, cursor, linha do EditText, botão e barras do sistema. -->
+        <item name="android:textColor">@color/texto</item>
+        <item name="android:textColorPrimary">@color/texto</item>
+        <item name="android:textColorSecondary">@color/texto_secundario</item>
+        <item name="android:textColorHint">@color/texto_secundario</item>
+        <item name="android:colorAccent">@color/primaria</item>
+        <item name="android:colorControlNormal">@color/contorno</item>
+        <item name="android:colorControlActivated">@color/primaria</item>
+        <item name="android:colorButtonNormal">@color/superficie_recipiente_alto</item>
+        <!-- Fonte: só Geist no tema, de propósito. É a de CORPO na régua do 241
+             (Bevan só em título >= 22sp, Bitcount só em número isolado); pôr Bevan
+             global empastaria toda frase pequena. Os 3 .ttf entram no repo com o
+             LICENSE-fonts-OFL.txt na raiz, que é a obrigação única da OFL 1.1.
+             Bevan e Bitcount ficam disponíveis para o dia do build. -->
+        <item name="android:fontFamily">@font/geist_variable</item>
+        <item name="android:statusBarColor">@color/superficie</item>
+        <item name="android:navigationBarColor">@color/superficie</item>
+    </style>
+</resources>

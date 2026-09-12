@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Notificação é o único canal de aviso passivo do app (motivo de campo aberto + recibo). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- android:name=".App" É o requisito nº 1 deste projeto: instala o gravador de crash
+         antes de qualquer tela. As 4 builds anteriores do outro app morreram cegas por
+         não ter esta linha. -->
+    <application
+        android:name=".App"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/Tema.Preenche">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Entrada do perfil por arquivo (brief 243). Exported=true SÓ pelo compartilhar:
+             receber ACTION_SEND de outro app exige isso. Ela não devolve dado nenhum e
+             nada é salvo sem a pessoa confirmar na tela. -->
+        <activity
+            android:name=".ProfileFileActivity"
+            android:exported="true"
+            android:label="Preenche · perfil">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/*" />
+                <!-- Telegram e gerenciador de arquivos costumam mandar .md como
+                     application/octet-stream; sem esta linha o Preenche não aparece na
+                     lista do compartilhar. Mais estreito que "*/*" de propósito: não
+                     queremos o app em TODO compartilhar. O código já lê por stream. -->
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".ReceiptActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".LearnedActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".DiagnosticsActivity"
+            android:exported="false" />
+
+        <!-- Serve SÓ os diagnósticos, só leitura, e só ao app escolhido no compartilhar
+             (grant por URI no intent). Nenhum outro dado do filesDir passa por aqui. -->
+        <provider
+            android:name=".FileProvider"
+            android:authorities="com.mygoll.funform.diagnosticos"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
+        <service
+            android:name=".FunFormService"
+            android:exported="false"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/funform_service" />
+        </service>
+    </application>
+</manifest>
