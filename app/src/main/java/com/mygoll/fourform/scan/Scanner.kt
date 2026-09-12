@@ -165,16 +165,7 @@ object Scanner {
                 hintRepetidoNaTela = it.hint?.trim() in hintsRepetidos,
             )
         }
-        // escolha sem texto próprio herda o vizinho geométrico, mesma escada dos editáveis
-        val rotulosDeOpcao = escolhasBrutas.mapNotNull { it.rotulo?.let(Matcher::normalizar) }.toSet()
-        val escolhas = escolhasBrutas.map {
-            val comRotulo =
-                if (it.rotulo != null) it
-                else it.copy(rotulo = Labeler.vizinhoMaisProximo(it.caixa, textos)?.texto)
-            comRotulo.copy(
-                pergunta = Labeler.perguntaAcima(it.caixa, textos, rotulosDeOpcao),
-            )
-        }
+        val escolhas = resolverEscolhas(escolhasBrutas, textos)
         // a assinatura inclui a POSIÇÃO (caixa.topo) de propósito: rolar meia tela mantém os
         // mesmos campos na árvore, só que mais acima. Sem a posição, "rolou meia tela" seria
         // lido como "nada mudou" e o laço morreria antes do fim do formulário.
@@ -185,6 +176,28 @@ object Scanner {
             escolhas.forEach { append(it.chave).append(':').append(it.caixa.topo).append(',') }
         }
         return Saida(campos, nos, rolavel, visitados, escolhas, nosEscolha, assinatura)
+    }
+
+    /**
+     * Turns raw Choice census entries into decidable ones, pure and JVM-testable (no
+     * AccessibilityNodeInfo involved): fills `rotulo` with the OPTION text to the right of
+     * the input (Labeler.rotuloADireita), and `pergunta` with the group's question above it
+     * (Labeler.perguntaAcima). This split is the fix for the bug measured on device 09/12:
+     * the old code filled `rotulo` from vizinhoMaisProximo, which accepts text above OR to
+     * the left without telling the two roles apart, so the question above (closer than any
+     * option) always won and `rotulo` ended up holding the question instead of the answer.
+     * A radio with no text to its right gets `rotulo = null` and stays undecided; falling
+     * back to the text above would just reintroduce the same bug.
+     */
+    fun resolverEscolhas(brutas: List<Choice>, textos: List<Pair<String, Box>>): List<Choice> {
+        val comRotulo = brutas.map {
+            if (it.rotulo != null) it
+            else it.copy(rotulo = Labeler.rotuloADireita(it.caixa, textos)?.texto)
+        }
+        val rotulosDeOpcao = comRotulo.mapNotNull { it.rotulo?.let(Matcher::normalizar) }.toSet()
+        return comRotulo.map {
+            it.copy(pergunta = Labeler.perguntaAcima(it.caixa, textos, rotulosDeOpcao))
+        }
     }
 
     /**

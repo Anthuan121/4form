@@ -107,6 +107,29 @@ object Labeler {
     }
 
     /**
+     * The label of a CHOICE option (radio, checkbox): the text to the RIGHT, on the SAME
+     * line (vertical overlap). In a form, the group's question sits ABOVE the group and the
+     * option sits BESIDE its own input, two different geometric roles. Before this method
+     * the app used vizinhoMaisProximo (which accepts above OR left) for both, so the text
+     * above won by being closer and became the option's label instead of the question's.
+     * Measured on device 09/12: 420 choice fields seen, 0 clicks, because the saved label
+     * was the whole question ("What is your level of English?"), which no profile declares.
+     * NO radius cap here, same reason as vizinhoMaisProximo: the caller is the one who cuts.
+     */
+    fun rotuloADireita(opcao: Box, textos: List<Pair<String, Box>>): RotuloVizinho? {
+        var melhor: RotuloVizinho? = null
+        for ((texto, t) in textos) {
+            val limpo = texto.trim()
+            if (limpo.isBlank()) continue
+            val sobrepoeVertical = t.topo < opcao.baixo && t.baixo > opcao.topo
+            if (!sobrepoeVertical || t.esq < opcao.dir) continue
+            val dist = t.esq - opcao.dir
+            if (melhor == null || dist < melhor.distanciaPx) melhor = RotuloVizinho(limpo, dist)
+        }
+        return melhor
+    }
+
+    /**
      * A pergunta de um grupo de opções: o texto mais próximo ACIMA que ⛔ não seja rótulo de
      * outra opção do mesmo grupo. Só acima de propósito — num formulário a pergunta fica em
      * cima do grupo, e o vizinho lateral de um radio é quase sempre o radio do lado, que é

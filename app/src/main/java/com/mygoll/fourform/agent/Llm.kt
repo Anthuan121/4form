@@ -5,6 +5,7 @@ import com.mygoll.fourform.scan.LinhaNaoEntendida
 import com.mygoll.fourform.scan.Learned
 import com.mygoll.fourform.scan.Matcher
 import com.mygoll.fourform.scan.Extractor
+import com.mygoll.fourform.scan.Choice
 
 /**
  * A resposta de pergunta aberta (brief 245): campo que a escada identificou mas o perfil
@@ -165,6 +166,94 @@ object Llm {
                     "falhou"
                 }
         }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // CAMADA 2 DE ESCOLHA (brief 257): quando a pergunta é legível mas nenhuma opção do
+    // grupo bate com o perfil, a IA entra como último degrau. Same anti-invention rule as
+    // the text-field path above (Sugestao/Veredito): the model can only pick from the exact
+    // option strings it was handed, never write free text into a radio group.
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    sealed class VereditoEscolha {
+        data class Marcar(val opcao: String, val ancora: String, val confianca: String) : VereditoEscolha()
+        data class NaoMarcar(val motivo: String) : VereditoEscolha()
+    }
+
+    /**
+     * Groups open choices by their shared question, so ONE call to the model carries the
+     * whole sibling list instead of guessing option by option. No invented group id: the
+     * key is the question text itself (Labeler.perguntaAcima, geometry only), exactly what
+     * the brief allows ("proximidade vertical e o enunciado comum acima").
+     * Eligible: clickable, not already checked, has an option label, and the question is
+     * readable (non-blank): an unreadable question already stopped at decidirEscolha.
+     */
+    fun agruparPorPergunta(escolhas: List<Choice>): Map<String, List<Choice>> =
+        escolhas
+            .filter { it.clicavel && !it.marcada && !it.rotulo.isNullOrBlank() && !it.pergunta.isNullOrBlank() }
+            .groupBy { it.pergunta!!.trim() }
+
+    /** The body of the POST: the question, the CLOSED list of options, and the profile lines. */
+    fun corpoEscolha(pergunta: String, opcoes: List<String>, linhasDePerfil: List<String>): String {
+        val prompt = buildString {
+            append("Você é o Preenche, um agente que preenche formulários SEM INVENTAR nada sobre a pessoa.\n")
+            append("Profile confirmado pela pessoa, uma linha \"chave: valor\" por dado:\n")
+            linhasDePerfil.forEach { append(it).append('\n') }
+            append("\nPergunta do formulário: \"").append(pergunta).append("\"\n")
+            append("As ÚNICAS opções disponíveis, escolha uma delas EXATAMENTE como está escrita:\n")
+            opcoes.forEach { append("- ").append(it).append('\n') }
+            append("\nResponda SOMENTE com um JSON, sem texto em volta:\n")
+            append("{\"pode_responder\": true|false, \"opcao\": \"...\", \"ancora\": \"...\", \"confianca\": \"alta|media|baixa\"}\n")
+            append("- \"opcao\": copie EXATAMENTE uma das opções listadas acima, sem mudar acentuação, ")
+            append("maiúscula ou pontuação. ⛔ Nunca escreva uma opção que não está na lista.\n")
+            append("- \"ancora\": cópia EXATA da linha do perfil que sustenta esta opção. Obrigatória quando pode_responder é true.\n")
+            append("- Se nenhuma opção puder ser sustentada pelo perfil, pode_responder é false e \"opcao\" explica o que falta.\n")
+            append("- Nunca invente fato que não esteja no perfil.")
+        }
+        return "{\"model\": ${Json.str(MODELO)}, \"max_tokens\": 300, " +
+            "\"messages\": [{\"role\": \"user\", \"content\": ${Json.str(prompt)}}]}"
+    }
+
+    /**
+     * From the HTTP response to the verdict. The mandatory guard from the brief lives HERE:
+     * an option that isn't LITERALLY (exact match, trimmed) one of the options sent is
+     * discarded, same as an unreadable or unanchored response. Never throws.
+     */
+    fun avaliarEscolha(resultadoHttp: Result<String>, opcoes: List<String>, linhasDePerfil: List<String>): VereditoEscolha {
+        val bruto = resultadoHttp.getOrElse {
+            return VereditoEscolha.NaoMarcar("the AI didn't respond (${it.message ?: it.javaClass.simpleName})")
+        }
+        return runCatching { avaliarEscolhaConteudo(bruto, opcoes, linhasDePerfil) }
+            .getOrElse { VereditoEscolha.NaoMarcar("the AI's response was unreadable") }
+    }
+
+    private fun avaliarEscolhaConteudo(bruto: String, opcoes: List<String>, linhas: List<String>): VereditoEscolha {
+        val conteudo = lerString(bruto, "content", exigirFim = false)
+            ?: return VereditoEscolha.NaoMarcar("the AI responded with no content")
+        val i = conteudo.indexOf('{')
+        if (i < 0) return VereditoEscolha.NaoMarcar("the AI didn't return the expected JSON")
+        val json = conteudo.substring(i)
+        val pode = Regex("\"pode_responder\"\\s*:\\s*(true|false)").find(json)?.groupValues?.get(1)
+            ?: return VereditoEscolha.NaoMarcar("the AI didn't return the expected JSON")
+        if (pode == "false") {
+            return VereditoEscolha.NaoMarcar("the AI said your profile doesn't have this")
+        }
+        val opcaoLida = lerString(json, "opcao", exigirFim = true)?.trim()
+            ?: return VereditoEscolha.NaoMarcar("the AI's answer came back empty or cut off")
+        // TRAVA OBRIGATÓRIA: a opção devolvida precisa estar LITERALMENTE na lista enviada.
+        // Sem isto o modelo poderia parafrasear ou inventar uma opção que não existe na
+        // tela, e o clique iria para o nó errado (ou para nenhum).
+        if (opcoes.none { it.trim() == opcaoLida }) {
+            return VereditoEscolha.NaoMarcar("the AI picked \"$opcaoLida\", which isn't one of the options on screen: discarded")
+        }
+        val ancora = lerString(json, "ancora", exigirFim = true)?.takeIf { it.isNotBlank() }
+            ?: return VereditoEscolha.NaoMarcar("answer with no anchor in your profile: treated as invention")
+        if (!ancoraExiste(ancora, linhas)) {
+            return VereditoEscolha.NaoMarcar("the cited anchor doesn't exist in your profile: treated as invention")
+        }
+        val confianca = lerString(json, "confianca", exigirFim = true)?.lowercase()
+            ?.takeIf { it == "alta" || it == "media" || it == "baixa" } ?: "baixa"
+        return VereditoEscolha.Marcar(opcaoLida, ancora, confianca)
+    }
 
     // ─────────────────────────────────────────────────────────────────────────────
     // LEITURA DO CURRÍCULO (10/09, achado dele no aparelho: 55 linhas em "não entendi")
