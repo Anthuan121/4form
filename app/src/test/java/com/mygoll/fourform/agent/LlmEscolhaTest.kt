@@ -23,33 +23,34 @@ class LlmEscolhaTest {
     @Test
     fun `opcao devolvida fora da lista enviada e descartada`() {
         val resposta = httpContent(
-            "{\"pode_responder\": true, \"opcao\": \"Talvez\", " +
+            "{\"pode_responder\": true, \"resposta\": \"Talvez\", " +
                 "\"ancora\": \"reside em pais europeu: sim\", \"confianca\": \"alta\"}",
         )
         val veredito = Llm.avaliarEscolha(resposta, opcoes, perfil)
-        assertTrue(veredito is Llm.VereditoEscolha.NaoMarcar)
-        assertTrue((veredito as Llm.VereditoEscolha.NaoMarcar).motivo.contains("Talvez"))
+        // A trava que importa é o DESCARTE: opção que não estava na tela nunca é marcada.
+        // ⛔ Não afirmo o texto do motivo: ele é mensagem de usuário e muda com a redação.
+        assertTrue(veredito is Llm.Veredito.NaoResponder)
     }
 
     @Test
     fun `opcao que bate literalmente com a lista e aceita`() {
         val resposta = httpContent(
-            "{\"pode_responder\": true, \"opcao\": \"Sim\", " +
+            "{\"pode_responder\": true, \"resposta\": \"Sim\", " +
                 "\"ancora\": \"reside em pais europeu: sim\", \"confianca\": \"alta\"}",
         )
         val veredito = Llm.avaliarEscolha(resposta, opcoes, perfil)
-        assertTrue(veredito is Llm.VereditoEscolha.Marcar)
-        assertEquals("Sim", (veredito as Llm.VereditoEscolha.Marcar).opcao)
+        assertTrue(veredito is Llm.Veredito.Responder)
+        assertEquals("Sim", (veredito as Llm.Veredito.Responder).sugestao.resposta)
     }
 
     @Test
     fun `ancora que nao existe no perfil tambem e descartada, mesmo com opcao valida`() {
         val resposta = httpContent(
-            "{\"pode_responder\": true, \"opcao\": \"Sim\", " +
+            "{\"pode_responder\": true, \"resposta\": \"Sim\", " +
                 "\"ancora\": \"gosta de pizza\", \"confianca\": \"alta\"}",
         )
         val veredito = Llm.avaliarEscolha(resposta, opcoes, perfil)
-        assertTrue(veredito is Llm.VereditoEscolha.NaoMarcar)
+        assertTrue(veredito is Llm.Veredito.NaoResponder)
     }
 
     @Test
