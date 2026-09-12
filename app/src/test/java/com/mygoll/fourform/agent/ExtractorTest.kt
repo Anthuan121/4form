@@ -216,6 +216,26 @@ class ExtratorTest {
         assertTrue(e.naoEntendi.any { it.texto.contains("Portfolio") })
     }
 
+    // ---- brief 254: text as it comes out of PDFTextStripper (no markdown, one line per visual line) ----
+
+    @Test
+    fun textoExtraidoDePdfViraParesNoExtractor() {
+        // PDFTextStripper returns plain text, one line per visual line on the page, no "#"
+        // and no "**": the poorest format the Extractor has to handle. This does not go
+        // through real pdfbox here (that needs Android/a device); it simulates its output.
+        val textoDoPdf =
+            "Maria da Graça Boaventura\n" +
+                "Product Designer\n" +
+                "email: maria.boaventura@exemplo.com\n" +
+                "telefone: +353 83 000 0000\n" +
+                "cidade: Dublin\n"
+        val e = Extractor.extrair(textoDoPdf)
+        assertEquals("Maria da Graça Boaventura", valor(e, "nome"))
+        assertEquals("maria.boaventura@exemplo.com", valor(e, "email"))
+        assertEquals("+353 83 000 0000", valor(e, "phone"))
+        assertEquals("Dublin", valor(e, "cidade"))
+    }
+
     // ---- mesclar: entra por cima, chave a chave, sem apagar o resto ----
 
     @Test

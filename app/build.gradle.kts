@@ -1,7 +1,7 @@
 import java.util.Properties
 
 plugins {
-    id("com.android.application") // Kotlin bundled since AGP 9; no separate Kotlin plugin
+    id("com.android.application") // Kotlin embutido desde o AGP 9; sem plugin Kotlin à parte
 }
 
 android {
@@ -15,10 +15,10 @@ android {
         versionCode = 10
         versionName = "1.0-4form"
 
-        // The bridge URL (with the path secret) comes from local.properties, which is NEVER
-        // versioned. The repo can go public showing the whole architecture without giving
-        // away the secret; whoever clones it builds with an empty string and the app degrades to "no AI".
-        // 🎓 This is industry standard: secret in a local file + BuildConfig, never in source.
+        // A URL da ponte (com o segredo do caminho) vem do local.properties, que NUNCA e
+        // versionado. O repo pode ir publico mostrando a arquitetura inteira sem entregar
+        // o segredo; quem clonar compila com string vazia e o app degrada para "sem IA".
+        // 🎓 E o padrao da industria: segredo em arquivo local + BuildConfig, nunca em fonte.
         val propsLocais = Properties().apply {
             val f = rootProject.file("local.properties")
             if (f.exists()) f.inputStream().use { load(it) }
@@ -30,7 +30,7 @@ android {
         )
     }
 
-    // BuildConfig is off by default in AGP 9; the main screen shows the version through it.
+    // BuildConfig desligado por padrão no AGP 9; a tela principal mostra a versão por ele.
     buildFeatures {
         buildConfig = true
     }
@@ -42,6 +42,10 @@ android {
 }
 
 dependencies {
-    // Zero purpose-built runtime dependency: plain Activity + platform theme.
+    // "Zero runtime dependency" stopped being true on 09/12 (brief 254): a real resume
+    // arrives as PDF, and PDF has no text ready to read (it's a compressed stream, and
+    // Android's own PdfRenderer only rasterizes a page as an image, it does not extract
+    // text). com.tom-roush:pdfbox-android is the deliberate, single dependency of this app.
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     testImplementation("junit:junit:4.13.2")
 }

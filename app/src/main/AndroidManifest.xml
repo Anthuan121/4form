@@ -39,6 +39,9 @@
                      the share list. Narrower than "*/*" on purpose: we don't want the app
                      showing up on EVERY share. The code already reads via stream. -->
                 <data android:mimeType="application/octet-stream" />
+                <!-- Real resumes arrive as PDF (brief 254). Extraction is local, via
+                     pdfbox-android; the file itself is never kept. -->
+                <data android:mimeType="application/pdf" />
             </intent-filter>
         </activity>
 
