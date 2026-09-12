@@ -280,4 +280,74 @@ object Ui {
             setTextColor(cor(corDoTexto))
             setPadding(0, dp(8), 0, 0)
         }
+
+    /**
+     * OS PILARES: a régua de 4 categorias do desenho aprovado (tela 1) virando gráfico,
+     * quatro retângulos e nada de biblioteca, como ele pediu. Cada [Pilar] traz sua própria
+     * altura (0f a 1f) e se desenha tracejado ou não; esta função só sabe montar a view.
+     *
+     * 🎓 A coluna tracejada usa `dashWidth`/`dashGap` no `GradientDrawable` em vez do fundo
+     * sólido das outras: é a MESMA gramática de cor (âmbar) que o resto do app usa pra
+     * "lacuna declarada", só que aqui em forma de barra em vez de ponto ou palavra. Isso é
+     * o que deixa óbvio, sem legenda, que aquela coluna não é um erro de leitura.
+     */
+    fun Context.pilares(dados: List<Pilar>): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = dp(10) }
+
+        val altura = dp(56)
+        dados.forEach { dado ->
+            val coluna = LinearLayout(this@pilares).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = android.view.Gravity.CENTER_HORIZONTAL
+            }
+            coluna.addView(
+                TextView(this@pilares).apply {
+                    text = dado.valor
+                    textSize = 11f
+                    setTypeface(typeface, Typeface.BOLD)
+                    setTextColor(cor(R.color.texto))
+                }
+            )
+
+            val moldura = LinearLayout(this@pilares).apply { orientation = LinearLayout.VERTICAL }
+            moldura.layoutParams = LinearLayout.LayoutParams(dp(28), altura).apply { topMargin = dp(4) }
+            // altura mínima visível: 0% de verdade some da tela e vira "sem coluna nenhuma",
+            // que é outra mensagem (bug), não a que o produto quer dar (dado real é baixo).
+            val cheio = dado.fracao.coerceIn(0.08f, 1f)
+            moldura.addView(
+                View(this@pilares),
+                LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f - cheio),
+            )
+            val barra = View(this@pilares).apply {
+                background = if (dado.tracejado) {
+                    GradientDrawable().apply {
+                        shape = GradientDrawable.RECTANGLE
+                        cornerRadius = dp(3).toFloat()
+                        setStroke(dp(2), cor(R.color.aviso), dp(4).toFloat(), dp(3).toFloat())
+                    }
+                } else {
+                    GradientDrawable().apply {
+                        shape = GradientDrawable.RECTANGLE
+                        cornerRadius = dp(3).toFloat()
+                        setColor(cor(R.color.primaria))
+                    }
+                }
+            }
+            moldura.addView(barra, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, cheio))
+            coluna.addView(moldura)
+
+            coluna.addView(
+                TextView(this@pilares).apply {
+                    text = dado.rotulo
+                    textSize = 9.5f
+                    setTextColor(cor(R.color.texto_secundario))
+                    setPadding(0, dp(4), 0, 0)
+                }
+            )
+            addView(coluna, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        }
+    }
 }

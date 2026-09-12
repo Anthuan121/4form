@@ -20,6 +20,7 @@ import com.mygoll.fourform.Ui.explicacao
 import com.mygoll.fourform.Ui.h2
 import com.mygoll.fourform.Ui.kicker
 import com.mygoll.fourform.Ui.linhaNav
+import com.mygoll.fourform.Ui.pilares
 import com.mygoll.fourform.Ui.rotuloCampo
 import com.mygoll.fourform.Ui.selo
 
@@ -36,6 +37,7 @@ class MainActivity : Activity() {
     private lateinit var caixaPerfil: EditText
     private lateinit var estadoServico: TextView
     private lateinit var estadoPerfil: TextView
+    private lateinit var pilaresPerfil: LinearLayout
     private lateinit var textoBuild: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -81,6 +83,10 @@ class MainActivity : Activity() {
             setPadding(0, dp(4), 0, 0)
         }
         cartaoPerfil.addView(estadoPerfil)
+        // Preenchido/limpo a cada onResume: vazio some da tela em vez de virar 4 colunas
+        // zeradas (ordem dele: "gráfico de nada é pior que texto").
+        pilaresPerfil = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        cartaoPerfil.addView(pilaresPerfil)
         cartaoPerfil.addView(
             selo("Stays only on your device. The resume file itself isn't kept.")
         )
@@ -158,6 +164,12 @@ class MainActivity : Activity() {
         estadoPerfil.setTextColor(
             resources.getColor(if (itens == 0) R.color.aviso else R.color.texto, null)
         )
+
+        pilaresPerfil.removeAllViews()
+        PerfilCompletude.calcular(texto)?.let { p ->
+            pilaresPerfil.addView(pilares(p.itens))
+            pilaresPerfil.addView(selo("${p.lacunas} known gaps", R.color.aviso))
+        }
 
         val crash = Store.ultimoCrash(this)
         textoBuild.text = buildString {
