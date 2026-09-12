@@ -112,12 +112,33 @@ class RotuladorTest {
     }
 
     @Test
-    fun `nivel preferido e atalho, nunca trava - se nao resolve, a escada roda inteira`() {
+    fun `atalho aprendido acelera, mas nunca rebaixa a fonte do rotulo`() {
         val c = Field(chave = "c", hint = "Nome", rotuloVizinho = RotuloVizinho("Vizinho", 10))
-        // o atalho aprendido aponta pro vizinho: ele é tentado primeiro
-        assertEquals("Vizinho" to "vizinho:10px", Labeler.rotulo(c, nivelPreferido = "vizinho"))
+        // ⛔ o atalho NÃO pula um nível determinístico: o hint é o nó dizendo o que ele é,
+        // o vizinho é palpite por distância. Atalho economiza tentativa, não troca a fonte.
+        assertEquals("Nome" to "hint", Labeler.rotulo(c, nivelPreferido = "vizinho"))
         // o atalho aponta pra um nível que ESTE campo não tem: cai na escada normal
         assertEquals("Nome" to "hint", Labeler.rotulo(c, nivelPreferido = "labeledBy"))
+        // entre os AMBÍGUOS o atalho continua valendo, que é onde ele serve pra alguma coisa
+        val g = Field(chave = "g", rotuloIrmao = "Irmao", rotuloVizinho = RotuloVizinho("Vizinho", 10))
+        assertEquals("Vizinho" to "vizinho:10px", Labeler.rotulo(g, nivelPreferido = "vizinho"))
+        assertEquals("Irmao" to "irmao", Labeler.rotulo(g))
+    }
+
+    @Test
+    fun `o caso do aparelho dele - viewId vence o asterisco de obrigatorio`() {
+        // medido 12/09, Greenhouse dentro do Edge: o "*" é nó de texto próprio e fica a 189px
+        // do input, mais perto que o rótulo de verdade. Com o atalho "vizinho" aprendido, os
+        // três campos saíram deslocados em um e o nome dele foi parar no sobrenome.
+        val c = Field(
+            chave = "c",
+            viewId = "first_name",
+            rotuloVizinho = RotuloVizinho("*", 189),
+        )
+        assertEquals("first name" to "viewId", Labeler.rotulo(c, nivelPreferido = "vizinho"))
+        // e sem viewId nenhum, o "*" continua não servindo de rótulo: adorno não é pergunta
+        val semId = Field(chave = "s", rotuloVizinho = RotuloVizinho("*", 189))
+        assertEquals(null, Labeler.rotulo(semId))
     }
 }
 

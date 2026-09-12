@@ -25,6 +25,21 @@ object Labeler {
     val NIVEIS = listOf("labeledBy", "hint", "descricao", "viewId", "irmao", "vizinho")
 
     /**
+     * Quantos níveis do topo são DETERMINÍSTICOS: o próprio nó declara o que ele é, e não há
+     * palpite geométrico envolvido. Do índice 4 em diante (irmao, vizinho) o rótulo é inferido
+     * por posição na tela, que é onde app diferente pede caminho diferente — e é a única faixa
+     * em que o atalho do aprendizado tem o direito de reordenar.
+     */
+    private const val DETERMINISTICOS = 4
+
+    /**
+     * Rótulo sem UMA LETRA sequer não é rótulo: é adorno. O "*" de campo obrigatório é um nó de
+     * texto por conta própria e mora coladinho no input, então ele ganha de qualquer rótulo de
+     * verdade na disputa por distância. Medido em 12/09: "*" virou o rótulo do `first_name`.
+     */
+    private fun temLetra(s: String): Boolean = s.any { it.isLetter() }
+
+    /**
      * Placeholder que manda DIGITAR não é o nome do campo. Medido no aparelho dele em
      * 12/09, no Ashby (jobs.ashbyhq.com, vaga da Ceartas): os quatro campos da tela tinham
      * o mesmo hint, "Type here...". Como hint é o nível 2 da escada, o app batizava os
@@ -54,9 +69,17 @@ object Labeler {
      * inteira — atalho, nunca trava.
      */
     fun rotulo(c: Field, nivelPreferido: String? = null): Pair<String, String>? {
-        if (nivelPreferido != null) porNivel(c, nivelPreferido)?.let { return it }
-        for (nivel in NIVEIS) {
-            if (nivel == nivelPreferido) continue // já tentado acima
+        // 🎓 O atalho só pode antecipar entre os níveis AMBÍGUOS (irmao/vizinho), onde o que
+        // resolve varia mesmo de app para app. Deixá-lo pular os DETERMINÍSTICOS foi o que pôs
+        // o nome dele no campo do sobrenome em 12/09, no Greenhouse dentro do Edge: o campo
+        // trazia viewId="first_name" (nível 4, o nó dizendo o que é), e o atalho aprendido
+        // "vizinho" (nível 6) respondia antes com o texto geometricamente mais perto — que era
+        // o asterisco de "obrigatório". Cada campo herdou o rótulo do de cima e a tela inteira
+        // saiu deslocada em um. Atalho pode economizar tentativa; ⛔ não pode rebaixar a fonte.
+        val atalho = nivelPreferido?.takeIf { NIVEIS.indexOf(it) >= DETERMINISTICOS }
+        for ((i, nivel) in NIVEIS.withIndex()) {
+            if (atalho != null && i == DETERMINISTICOS) porNivel(c, atalho)?.let { return it }
+            if (nivel == atalho) continue // já tentado logo acima
             porNivel(c, nivel)?.let { return it }
         }
         // fim da escada: o viewId cru sai como rótulo de EXIBIÇÃO ("não sei o que este
@@ -67,7 +90,10 @@ object Labeler {
         return null
     }
 
-    private fun porNivel(c: Field, nivel: String): Pair<String, String>? = when (nivel) {
+    private fun porNivel(c: Field, nivel: String): Pair<String, String>? =
+        porNivelCru(c, nivel)?.takeIf { temLetra(it.first) }
+
+    private fun porNivelCru(c: Field, nivel: String): Pair<String, String>? = when (nivel) {
         "labeledBy" -> c.labeledBy?.takeIf { it.isNotBlank() }?.let { it.trim() to "labeledBy" }
         // hint repetido em vários campos da mesma tela não identifica campo nenhum, e essa
         // defesa é a que atravessa idioma: vale para "Type here" e para o equivalente em
