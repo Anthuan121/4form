@@ -64,6 +64,8 @@ Category 4 is not a limitation we are apologising for. It is the feature.
 
 A tool that writes in your name and invents a salary expectation, a visa status, or a start date is not saving you time. It is creating a problem you will find out about in an interview.
 
+**A fifth case, and it is not the same as category 4.** Category 4 is "your CV doesn't answer this." Some fields are the opposite: the CV *could* answer them, and the agent still won't, because the answer isn't data, it's a decision that belongs to the person. Salary expectations, availability to start, gender, ethnicity, disability, "I declare that this information is true": these are reserved by rule, not by a missing fact. Fill in "salary expectations: 55k" on your profile and the field still stays blank, on purpose, and the panel says so in a different, calmer tone than "I couldn't find this" — because it is not the same failure. It is not a failure at all.
+
 ---
 
 ## The three acts
@@ -98,7 +100,7 @@ The interesting parts of this codebase are the failure paths, because that is wh
 
 ```bash
 ./gradlew :app:assembleDebug
-./gradlew :app:testDebugUnitTest   # 137 tests
+./gradlew :app:testDebugUnitTest   # 142 tests
 ```
 
 Install, enable 4Form in Android accessibility settings, open a job application, and tap the accessibility button.
@@ -115,7 +117,7 @@ Built in one day. What is proven on a real device, on real job forms:
 
 - writing into named, empty web fields on Greenhouse and Ashby
 - the scroll and fill loop running to the end of a form
-- refusing salary expectations and availability, because the profile did not declare them
+- refusing salary expectations, availability, sensitive identity fields, and legal declarations by RULE, even when the profile declares the value
 - the bubble, its states, and the panel it opens
 
 What is not proven yet: the learned correction winning on a later round. The write is measured. The replay is not.

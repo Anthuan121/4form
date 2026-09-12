@@ -5,9 +5,74 @@ import com.mygoll.fourform.scan.PathMemory
 import com.mygoll.fourform.scan.Labeler
 import com.mygoll.fourform.scan.Field
 import com.mygoll.fourform.scan.Choice
+import com.mygoll.fourform.scan.Matcher
 
 data class ItemPreenchido(val rotulo: String, val valor: String, val fonte: String)
 data class ItemAberto(val rotulo: String?, val motivo: String)
+
+/**
+ * Fields that belong to the PERSON, by DECISION, not by missing data. His words on
+ * 09/12, about the salary field: "he has to understand he must NOT fill this in, it has
+ * to be left for the user." Before this rule the app only left these fields blank by
+ * ACCIDENT (it didn't find the word in the profile); the moment the profile gains a
+ * "salary expectation: 55k" line, that accident stops protecting anyone. This turns the
+ * accident into a rule that survives the profile being filled in.
+ *
+ * Three families, three different reasons a field can be off limits:
+ *  - NEGOTIATION: salary, availability, notice period. Not data about the person, it's
+ *    a POSITION that changes per job.
+ *  - SENSITIVE IDENTITY: gender, ethnicity, disability, veteran status, orientation.
+ *    Never answered on someone's behalf, not even with the value in hand.
+ *  - LEGAL DECLARATION: consents, terms, "I declare the information is true". The
+ *    signature belongs to the person, not to the agent.
+ *
+ * Matches by WHOLE WORD through the Matcher that already exists (scan/Matcher.kt), the
+ * same rule the rest of the app uses so "Surname" doesn't match the key "name": no new
+ * comparison logic here.
+ *
+ * Deliberately a short, explicit list instead of a dictionary: letting a reserved field
+ * slip through costs one blank field the person notices and fills themselves. Blocking a
+ * common field by an over-eager word list costs the whole form's trust. The first
+ * mistake is cheap, the second one is the one to avoid.
+ */
+object CampoReservado {
+
+    enum class Familia { NEGOCIACAO, IDENTIDADE, JURIDICO }
+
+    data class Motivo(val familia: Familia, val frase: String)
+
+    private val NEGOCIACAO = listOf(
+        "salary expectations", "expected salary", "desired salary", "current salary",
+        "compensation expectations", "notice period", "available to start", "when can you start",
+        "pretensao salarial", "expectativa salarial", "salario atual", "aviso previo",
+        "disponivel para comecar", "data de inicio disponivel",
+    )
+    private val IDENTIDADE = listOf(
+        "gender", "ethnicity", "race", "disability", "veteran status", "sexual orientation",
+        "genero", "etnia", "raca", "deficiencia", "condicao de veterano", "orientacao sexual",
+    )
+    private val JURIDICO = listOf(
+        "i declare that", "i certify that", "i consent", "i agree to the terms",
+        "declaro que", "certifico que", "eu concordo com os termos",
+    )
+
+    /** Pure and testable: label in, reserved family + reason out, or null when it isn't reserved. */
+    fun deste(rotulo: String): Motivo? = when {
+        bate(rotulo, NEGOCIACAO) -> Motivo(
+            Familia.NEGOCIACAO, "Salary is your call, not mine. I won't guess a number for you.",
+        )
+        bate(rotulo, IDENTIDADE) -> Motivo(
+            Familia.IDENTIDADE, "This is yours to state. I won't answer it on your behalf.",
+        )
+        bate(rotulo, JURIDICO) -> Motivo(
+            Familia.JURIDICO, "That's your signature, not mine to give.",
+        )
+        else -> null
+    }
+
+    private fun bate(rotulo: String, termos: List<String>): Boolean =
+        termos.any { Matcher.casa(rotulo, it) }
+}
 
 data class Receipt(
     val preenchidos: List<ItemPreenchido>,
@@ -32,7 +97,10 @@ class Session(
 
     sealed class Decisao {
         data class Preencher(val valor: String, val fonte: String) : Decisao()
-        data class DeixarAberto(val motivo: String) : Decisao()
+        // reservado: true only for CampoReservado's motive, kept separate from a plain
+        // "sem dado" (no data) DeixarAberto so the two can be counted apart (a rule
+        // refusing the field is not the same signal as the app simply not knowing).
+        data class DeixarAberto(val motivo: String, val reservado: Boolean = false) : Decisao()
     }
 
     data class Registro(
@@ -43,6 +111,7 @@ class Session(
         var valorEscrito: String? = null,
         var fonte: String? = null,
         var motivo: String? = null,
+        var reservado: Boolean = false,
     )
 
     var ativa = true
@@ -64,6 +133,10 @@ class Session(
         if (r.second == "viewId-cru") {
             return Decisao.DeixarAberto("I don't know what this field is asking")
         }
+        // reserved beats everything below: even when the profile HAS the value, this
+        // field isn't the agent's to fill. Checked before the profile lookup on purpose,
+        // so a reserved field never gets the chance to look "found" to begin with.
+        CampoReservado.deste(r.first)?.let { return Decisao.DeixarAberto(it.frase, reservado = true) }
         val achado = perfil.valorPara(r.first)
             ?: return Decisao.DeixarAberto("\"${r.first}\": I don't have this in your profile")
         return Decisao.Preencher(achado.valor, achado.fonte)
@@ -109,7 +182,10 @@ class Session(
                 } else {
                     reg.motivo = "the field refused the write"
                 }
-            is Decisao.DeixarAberto -> reg.motivo = decisao.motivo
+            is Decisao.DeixarAberto -> {
+                reg.motivo = decisao.motivo
+                reg.reservado = decisao.reservado
+            }
         }
         porChave[campo.chave] = reg
     }

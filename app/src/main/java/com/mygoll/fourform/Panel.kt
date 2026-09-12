@@ -211,18 +211,27 @@ class Panel(
         // because not typing here is what he asked: "if I'm going to type, I type in the form".
         if (abertos.isNotEmpty()) lista.addView(secao("Left for you"))
         for (r in abertos) {
-            // ponto ÂMBAR, não brasa: lacuna declarada é virtude do produto, não falha.
-            // O motivo entra como detalhe pra frase dizer o porquê no mesmo olhar.
+            // brief 260: reserved fields (negotiation, sensitive identity, legal
+            // declaration) get the CONTORNO dot, never âmbar. Âmbar means "the résumé
+            // doesn't answer this" (category 4, a gap); reserved means "I won't answer
+            // this even when I could" (a boundary, not a gap) — same visual would tell
+            // the person the app failed to find something it never tried to find.
+            val corDoPonto = if (r.reservado) R.color.contorno else R.color.aviso
             lista.addView(
-                service.itemComPonto(r.rotulo ?: "unnamed field", r.motivo ?: "", R.color.aviso)
+                service.itemComPonto(r.rotulo ?: "unnamed field", r.motivo ?: "", corDoPonto)
             )
             val chave = r.campo.chave
-            val sug = sugestao(chave)
+            // Reserved beats the AI too: no suggestion card and no "asking the AI" line
+            // render for a reserved field, whatever the AI path upstream returned. And there
+            // is no text box here by design (brief 255): if you are going to type, you type
+            // in the form behind this panel, not in a parallel one.
+            val sug = if (r.reservado) null else sugestao(chave)
             when {
                 sug != null -> lista.addView(cartaoIa(chave, sug))
-                consultando(chave) -> lista.addView(texto("asking the AI…", R.color.texto_secundario))
+                !r.reservado && consultando(chave) ->
+                    lista.addView(texto("asking the AI...", R.color.texto_secundario))
                 // else: no proposal. The itemComPonto line above already says which field
-                // it is and why it's blank · information, not action.
+                // it is and why it is blank · information, not action.
             }
         }
 

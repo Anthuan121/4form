@@ -73,6 +73,100 @@ class SessaoDecisaoTest {
     }
 }
 
+/**
+ * Brief 260: campos que a pessoa reserva pra si, mesmo quando o perfil tem o valor.
+ * TESTE JVM 1 é o que prova o brief inteiro — sem ele passando, a régua não existe.
+ */
+class SessaoCampoReservadoTest {
+
+    /** Perfil ARMADO com o próprio dado reservado, pra provar que ter o valor não basta. */
+    private fun perfilComSalario() = Profile(
+        """
+        nome: Maria da Graça Boaventura
+        salary expectations: 55k
+        pretensao salarial: R$ 12.000
+        gender: female
+        genero: feminino
+        i declare that the information is true: sim
+        """.trimIndent(),
+        emptyList(),
+    )
+
+    // TESTE JVM 1: campo reservado NÃO é preenchido mesmo com o valor presente no perfil.
+    @Test
+    fun `TESTE JVM 1 - campo reservado nao e preenchido mesmo com o valor no perfil`() {
+        val s = Session(perfilComSalario()) { ++relogio }
+        val d = s.decidir(Field(chave = "salario", hint = "Salary expectations"))
+        assertTrue(d is Session.Decisao.DeixarAberto)
+        assertTrue((d as Session.Decisao.DeixarAberto).reservado)
+        // não vaza o valor do perfil no motivo nem em lugar nenhum
+        assertFalse(d.motivo.contains("55k"))
+    }
+
+    // TESTE JVM 2: as três famílias reconhecidas em inglês e português.
+    @Test
+    fun `TESTE JVM 2 - as tres familias casam em ingles e portugues`() {
+        val s = Session(perfilComSalario()) { ++relogio }
+
+        val negociacaoEn = s.decidir(Field(chave = "a", hint = "Salary expectations"))
+        val negociacaoPt = s.decidir(Field(chave = "b", hint = "Pretensão salarial"))
+        val identidadeEn = s.decidir(Field(chave = "c", hint = "Gender"))
+        val identidadePt = s.decidir(Field(chave = "d", hint = "Gênero"))
+        val juridicoEn = s.decidir(Field(chave = "e", hint = "I declare that the information is true"))
+
+        for (d in listOf(negociacaoEn, negociacaoPt, identidadeEn, identidadePt, juridicoEn)) {
+            assertTrue(d is Session.Decisao.DeixarAberto)
+            assertTrue((d as Session.Decisao.DeixarAberto).reservado)
+        }
+        assertEquals(
+            CampoReservado.Familia.NEGOCIACAO,
+            CampoReservado.deste("Salary expectations")?.familia,
+        )
+        assertEquals(
+            CampoReservado.Familia.NEGOCIACAO,
+            CampoReservado.deste("Pretensão salarial")?.familia,
+        )
+        assertEquals(CampoReservado.Familia.IDENTIDADE, CampoReservado.deste("Gender")?.familia)
+        assertEquals(CampoReservado.Familia.IDENTIDADE, CampoReservado.deste("Gênero")?.familia)
+        assertEquals(
+            CampoReservado.Familia.JURIDICO,
+            CampoReservado.deste("I declare that the information is true")?.familia,
+        )
+    }
+
+    // TESTE JVM 3: campo comum continua sendo preenchido normalmente (a régua não vira
+    // rede que pega tudo).
+    @Test
+    fun `TESTE JVM 3 - campo comum continua sendo preenchido normalmente`() {
+        val s = Session(perfilComSalario()) { ++relogio }
+        val d = s.decidir(Field(chave = "nome", hint = "Nome"))
+        assertTrue(d is Session.Decisao.Preencher)
+        assertEquals("Maria da Graça Boaventura", (d as Session.Decisao.Preencher).valor)
+        assertNull(CampoReservado.deste("Nome"))
+        assertNull(CampoReservado.deste("Email"))
+        assertNull(CampoReservado.deste("Anos de experiência com Figma"))
+    }
+
+    @Test
+    fun `motivo do campo reservado fala em primeira pessoa e nao parece falha de dado`() {
+        val motivo = CampoReservado.deste("Salary expectations")!!
+        assertFalse(motivo.frase.contains("I don't have"))
+        assertTrue(motivo.frase.contains("your call") || motivo.frase.contains("mine"))
+    }
+
+    @Test
+    fun `registro guarda reservado separado do motivo de sem dado`() {
+        val s = Session(perfilComSalario()) { ++relogio }
+        val reservado = Field(chave = "salario", hint = "Salary expectations")
+        val semDado = Field(chave = "figma", hint = "Anos de experiência com Figma")
+        s.registrar(reservado, s.decidir(reservado))
+        s.registrar(semDado, s.decidir(semDado))
+        val regs = s.registros().associateBy { it.campo.chave }
+        assertTrue(regs.getValue("salario").reservado)
+        assertFalse(regs.getValue("figma").reservado)
+    }
+}
+
 class SessaoPainelTest {
 
     @Test
